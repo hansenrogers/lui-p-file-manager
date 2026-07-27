@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly List<FileSystemWatcher> _indexWatchers = new();
     private bool _isIndexing;
     private bool _hasStartedAutoIndex;
+    private TimeSpan? _lastIndexDuration;
 
     public MainWindow()
     {
@@ -1497,6 +1498,7 @@ public partial class MainWindow : Window
 
         _isIndexing = true;
         _indexingCts = new CancellationTokenSource();
+        var runStartedUtc = DateTimeOffset.UtcNow;
 
         try
         {
@@ -1531,6 +1533,7 @@ public partial class MainWindow : Window
 
             SetIndexingUiState(false, $"Index ready. Indexed {completed} location(s).", activeLocations.Count, activeLocations.Count);
             RefreshAllViews();
+            _lastIndexDuration = DateTimeOffset.UtcNow - runStartedUtc;
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException)
@@ -1790,6 +1793,7 @@ public partial class MainWindow : Window
         }
 
         _isIndexing = true;
+        var runStartedUtc = DateTimeOffset.UtcNow;
         try
         {
             SetIndexingUiState(true, $"{reason}: {location.Name}", 0, 1);
@@ -1799,6 +1803,7 @@ public partial class MainWindow : Window
             }).ConfigureAwait(true);
             SetIndexingUiState(false, $"Index updated: {location.Name}", 1, 1);
             RefreshAllViews();
+            _lastIndexDuration = DateTimeOffset.UtcNow - runStartedUtc;
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -1898,12 +1903,16 @@ public partial class MainWindow : Window
 
             if (latest == default)
             {
-                HeaderLastIndexedTextBlock.Text = "Last indexed: not yet";
+                HeaderLastIndexedTextBlock.Text = _lastIndexDuration is null
+                    ? "Last indexed: not yet"
+                    : $"Last indexed: not yet | Last scan duration: {FormatDuration(_lastIndexDuration.Value)}";
                 return;
             }
 
             var localTime = latest.ToLocalTime();
-            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}";
+            HeaderLastIndexedTextBlock.Text = _lastIndexDuration is null
+                ? $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}"
+                : $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt} | Last scan duration: {FormatDuration(_lastIndexDuration.Value)}";
         }
         catch
         {
@@ -1912,6 +1921,26 @@ public partial class MainWindow : Window
                 HeaderLastIndexedTextBlock.Text = "Last indexed: unavailable";
             }
         }
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalSeconds < 1)
+        {
+            return "<1s";
+        }
+
+        if (duration.TotalMinutes < 1)
+        {
+            return $"{Math.Round(duration.TotalSeconds)}s";
+        }
+
+        if (duration.TotalHours < 1)
+        {
+            return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+        }
+
+        return $"{(int)duration.TotalHours}h {duration.Minutes}m {duration.Seconds}s";
     }
 
     private void CancelIndexingButton_OnClick(object sender, RoutedEventArgs e)
