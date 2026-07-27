@@ -2,6 +2,7 @@
 using System.Windows.Input;
 using System.Windows;
 using System.Windows.Threading;
+using System.Windows.Controls;
 using System.Collections.Specialized;
 using System.Collections.Concurrent;
 using LuiP.FileManager.Core.Models;
@@ -49,6 +50,8 @@ public partial class MainWindow : Window
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
     private ItemSortMode _sourceSortMode = ItemSortMode.NameAscending;
     private ItemSortMode _destinationSortMode = ItemSortMode.NameAscending;
+    private const double DefaultNameColumnWidth = 260;
+    private const double DefaultModifiedColumnWidth = 170;
     private List<string> _pendingCutPaths = new();
     private bool _verifyLargeFileChecksumByDefault;
     private long _checksumThresholdBytes = 32L * 1024L * 1024L;
@@ -101,6 +104,7 @@ public partial class MainWindow : Window
             ConfigureIndexWatchers();
             RefreshShortcuts();
             _isUiInitialized = true;
+            ApplyColumnVisibility();
             RefreshAllViews();
             UpdateTransferContextBar();
         }
@@ -340,16 +344,11 @@ public partial class MainWindow : Window
 
             var sortedSearchResults = SortSearchResults(searchResults, _sourceSortMode).ToList();
 
-            _sourcePathByDisplay.Clear();
-            var displayed = new List<string>();
-            foreach (var result in sortedSearchResults)
-            {
-                var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath, result.ModifiedUtc);
-                _sourcePathByDisplay[display] = result.FullPath;
-                displayed.Add(display);
-            }
+            var rows = sortedSearchResults
+                .Select(result => CreateItemRow(result.FullPath, result.Name, result.IsFolder, result.ModifiedUtc))
+                .ToList();
 
-            SourceItemListView.ItemsSource = displayed;
+            SourceItemListView.ItemsSource = rows;
             UpdateTransferContextBar();
             return;
         }
@@ -357,13 +356,10 @@ public partial class MainWindow : Window
         var fsEntries = Directory.EnumerateFileSystemEntries(_currentSourcePath)
             .Where(path => MatchesDateFilter(path, _sourceDateFilter));
         var sortedEntries = SortPathEntries(fsEntries, _sourceSortMode).Take(500).ToList();
-        _sourcePathByDisplay.Clear();
-        var items = new List<string>(sortedEntries.Count);
+        var items = new List<FileItemRow>(sortedEntries.Count);
         foreach (var entry in sortedEntries)
         {
-            var display = FormatItemDisplay(entry);
-            _sourcePathByDisplay[display] = entry;
-            items.Add(display);
+            items.Add(CreateItemRow(entry));
         }
 
         SourceItemListView.ItemsSource = items;
@@ -410,16 +406,11 @@ public partial class MainWindow : Window
 
             var sortedSearchResults = SortSearchResults(searchResults, _destinationSortMode).ToList();
 
-            _destinationPathByDisplay.Clear();
-            var displayed = new List<string>();
-            foreach (var result in sortedSearchResults)
-            {
-                var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath, result.ModifiedUtc);
-                _destinationPathByDisplay[display] = result.FullPath;
-                displayed.Add(display);
-            }
+            var rows = sortedSearchResults
+                .Select(result => CreateItemRow(result.FullPath, result.Name, result.IsFolder, result.ModifiedUtc))
+                .ToList();
 
-            DestinationItemListView.ItemsSource = displayed;
+            DestinationItemListView.ItemsSource = rows;
             UpdateTransferContextBar();
             return;
         }
@@ -427,13 +418,10 @@ public partial class MainWindow : Window
         var fsEntries = Directory.EnumerateFileSystemEntries(_currentDestinationPath)
             .Where(path => MatchesDateFilter(path, _destinationDateFilter));
         var sortedEntries = SortPathEntries(fsEntries, _destinationSortMode).Take(500).ToList();
-        _destinationPathByDisplay.Clear();
-        var items = new List<string>(sortedEntries.Count);
+        var items = new List<FileItemRow>(sortedEntries.Count);
         foreach (var entry in sortedEntries)
         {
-            var display = FormatItemDisplay(entry);
-            _destinationPathByDisplay[display] = entry;
-            items.Add(display);
+            items.Add(CreateItemRow(entry));
         }
 
         DestinationItemListView.ItemsSource = items;
@@ -470,20 +458,24 @@ public partial class MainWindow : Window
         return $"{location.Name}   {location.Path}";
     }
 
-    private static string FormatItemDisplay(string path)
+    private static FileItemRow CreateItemRow(string fullPath)
     {
-        var name = Path.GetFileName(path);
-        var marker = Directory.Exists(path) ? "📁" : "📄";
-        var modified = FormatModifiedForDisplay(TryGetLastWriteUtc(path));
-        return $"{marker} {name} | Modified: {modified}";
+        var isFolder = Directory.Exists(fullPath);
+        var name = Path.GetFileName(fullPath);
+        return CreateItemRow(fullPath, name, isFolder, TryGetLastWriteUtc(fullPath));
     }
 
-    private static string FormatSearchDisplay(bool isFolder, string name, string fullPath, DateTimeOffset? modifiedUtc)
+    private static FileItemRow CreateItemRow(string fullPath, string name, bool isFolder, DateTimeOffset? modifiedUtc)
     {
-        var marker = isFolder ? "📁" : "📄";
-        var parent = Path.GetDirectoryName(fullPath) ?? string.Empty;
-        var modified = FormatModifiedForDisplay(modifiedUtc);
-        return $"{marker} {name} — {parent} | Modified: {modified}";
+        return new FileItemRow
+        {
+            FullPath = fullPath,
+            Name = name,
+            IsFolder = isFolder,
+            TypeGlyph = isFolder ? "📁" : "📄",
+            ModifiedUtc = modifiedUtc,
+            ModifiedDisplay = FormatModifiedForDisplay(modifiedUtc)
+        };
     }
 
     private static string ExtractNameFromItemDisplay(string itemDisplay)
@@ -562,25 +554,91 @@ public partial class MainWindow : Window
         RefreshDestinationItems();
     }
 
-    private void SourceSortComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void SourceSortNameAscButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (!_isUiInitialized)
         {
             return;
         }
 
-        _sourceSortMode = ParseSortMode(SourceSortComboBox.SelectedIndex);
+        _sourceSortMode = ItemSortMode.NameAscending;
         RefreshSourceItems();
     }
 
-    private void DestinationSortComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void SourceSortNameDescButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (!_isUiInitialized)
         {
             return;
         }
 
-        _destinationSortMode = ParseSortMode(DestinationSortComboBox.SelectedIndex);
+        _sourceSortMode = ItemSortMode.NameDescending;
+        RefreshSourceItems();
+    }
+
+    private void SourceSortDateNewestButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _sourceSortMode = ItemSortMode.DateModifiedNewest;
+        RefreshSourceItems();
+    }
+
+    private void SourceSortDateOldestButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _sourceSortMode = ItemSortMode.DateModifiedOldest;
+        RefreshSourceItems();
+    }
+
+    private void DestinationSortNameAscButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _destinationSortMode = ItemSortMode.NameAscending;
+        RefreshDestinationItems();
+    }
+
+    private void DestinationSortNameDescButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _destinationSortMode = ItemSortMode.NameDescending;
+        RefreshDestinationItems();
+    }
+
+    private void DestinationSortDateNewestButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _destinationSortMode = ItemSortMode.DateModifiedNewest;
+        RefreshDestinationItems();
+    }
+
+    private void DestinationSortDateOldestButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _destinationSortMode = ItemSortMode.DateModifiedOldest;
         RefreshDestinationItems();
     }
 
@@ -593,17 +651,6 @@ public partial class MainWindow : Window
             3 => DateFilterPreset.Last30Days,
             4 => DateFilterPreset.ThisYear,
             _ => DateFilterPreset.AllDates
-        };
-    }
-
-    private static ItemSortMode ParseSortMode(int selectedIndex)
-    {
-        return selectedIndex switch
-        {
-            1 => ItemSortMode.NameDescending,
-            2 => ItemSortMode.DateModifiedNewest,
-            3 => ItemSortMode.DateModifiedOldest,
-            _ => ItemSortMode.NameAscending
         };
     }
 
@@ -730,18 +777,12 @@ public partial class MainWindow : Window
 
     private void SourceItemListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (SourceItemListView.SelectedItem is not string display)
+        if (SourceItemListView.SelectedItem is not FileItemRow selectedItem)
         {
             return;
         }
 
-        var sourceLocation = GetSelectedSourceLocation();
-        if (sourceLocation is null)
-        {
-            return;
-        }
-
-        var path = ResolveSourcePath(display, sourceLocation.Path);
+        var path = selectedItem.FullPath;
         if (Directory.Exists(path))
         {
             _currentSourcePath = path;
@@ -758,22 +799,12 @@ public partial class MainWindow : Window
 
     private void DestinationItemListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (DestinationItemListView.SelectedItem is not string display)
+        if (DestinationItemListView.SelectedItem is not FileItemRow selectedItem)
         {
             return;
         }
 
-        if (!_destinationPathByDisplay.TryGetValue(display, out var path))
-        {
-            var destinationLocation = GetSelectedDestinationLocation();
-            if (destinationLocation is null)
-            {
-                return;
-            }
-
-            var name = ExtractNameFromItemDisplay(display);
-            path = Path.Combine(_currentDestinationPath ?? destinationLocation.Path, name);
-        }
+        var path = selectedItem.FullPath;
 
         if (Directory.Exists(path))
         {
@@ -807,10 +838,9 @@ public partial class MainWindow : Window
 
     private async void CopyToDestinationButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var sourceLocation = GetSelectedSourceLocation();
         var destinationLocation = GetSelectedDestinationLocation();
 
-        if (sourceLocation is null || destinationLocation is null)
+        if (destinationLocation is null)
         {
             MessageBox.Show(this, "Select both a source location and destination location.", "Copy", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -822,11 +852,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selectedFullPaths = SourceItemListView.SelectedItems
-            .OfType<string>()
-            .Select(display => ResolveSourcePath(display, sourceLocation.Path))
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .ToList();
+        var selectedFullPaths = GetSelectedSourcePaths();
 
         var conflictResolution = ConflictResolution.KeepBoth;
         var applyToAll = false;
@@ -1006,13 +1032,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selected = SourceItemListView.SelectedItems.OfType<string>().ToList();
+        var selected = SourceItemListView.SelectedItems.OfType<FileItemRow>().ToList();
         if (selected.Count == 0)
         {
             return;
         }
 
-        var fullPaths = selected.Select(display => ResolveSourcePath(display, sourceLocation.Path)).Where(File.Exists).Concat(selected.Select(display => ResolveSourcePath(display, sourceLocation.Path)).Where(Directory.Exists)).Distinct().ToArray();
+        var fullPaths = selected.Select(item => item.FullPath)
+            .Where(path => File.Exists(path) || Directory.Exists(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         if (fullPaths.Length == 0)
         {
             return;
@@ -1037,11 +1066,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selectedFullPaths = SourceItemListView.SelectedItems
-            .OfType<string>()
-            .Select(display => ResolveSourcePath(display, sourceLocation.Path))
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .ToList();
+        var selectedFullPaths = GetSelectedSourcePaths();
 
         var totalBytes = TryComputeTotalBytes(selectedFullPaths);
 
@@ -1190,15 +1215,14 @@ public partial class MainWindow : Window
 
     private void CopySelectionToClipboard(bool markAsCut)
     {
-        var sourceLocation = GetSelectedSourceLocation();
-        if (sourceLocation is null)
+        if (GetSelectedSourceLocation() is null)
         {
             return;
         }
 
         var paths = SourceItemListView.SelectedItems
-            .OfType<string>()
-            .Select(display => ResolveSourcePath(display, sourceLocation.Path))
+            .OfType<FileItemRow>()
+            .Select(item => item.FullPath)
             .Where(path => File.Exists(path) || Directory.Exists(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -1276,15 +1300,9 @@ public partial class MainWindow : Window
 
     private void OpenSelectedItem()
     {
-        if (SourceItemListView.IsKeyboardFocusWithin && SourceItemListView.SelectedItem is string focusedSourceDisplay)
+        if (SourceItemListView.IsKeyboardFocusWithin && SourceItemListView.SelectedItem is FileItemRow focusedSourceItem)
         {
-            var sourceLocation = GetSelectedSourceLocation();
-            if (sourceLocation is null)
-            {
-                return;
-            }
-
-            var sourcePath = ResolveSourcePath(focusedSourceDisplay, sourceLocation.Path);
+            var sourcePath = focusedSourceItem.FullPath;
             if (File.Exists(sourcePath) || Directory.Exists(sourcePath))
             {
                 PreviewWindow.OpenPathWithShell(sourcePath);
@@ -1292,10 +1310,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (DestinationItemListView.IsKeyboardFocusWithin && DestinationItemListView.SelectedItem is string focusedDestinationDisplay)
+        if (DestinationItemListView.IsKeyboardFocusWithin && DestinationItemListView.SelectedItem is FileItemRow focusedDestinationItem)
         {
-            if (_destinationPathByDisplay.TryGetValue(focusedDestinationDisplay, out var destinationPath)
-                && (File.Exists(destinationPath) || Directory.Exists(destinationPath)))
+            var destinationPath = focusedDestinationItem.FullPath;
+            if (File.Exists(destinationPath) || Directory.Exists(destinationPath))
             {
                 PreviewWindow.OpenPathWithShell(destinationPath);
             }
@@ -1303,15 +1321,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (SourceItemListView.SelectedItem is string sourceDisplay)
+        if (SourceItemListView.SelectedItem is FileItemRow sourceItem)
         {
-            var sourceLocation = GetSelectedSourceLocation();
-            if (sourceLocation is null)
-            {
-                return;
-            }
-
-            var sourcePath = ResolveSourcePath(sourceDisplay, sourceLocation.Path);
+            var sourcePath = sourceItem.FullPath;
             if (File.Exists(sourcePath) || Directory.Exists(sourcePath))
             {
                 PreviewWindow.OpenPathWithShell(sourcePath);
@@ -1319,10 +1331,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (DestinationItemListView.SelectedItem is string destinationDisplay)
+        if (DestinationItemListView.SelectedItem is FileItemRow destinationItem)
         {
-            if (_destinationPathByDisplay.TryGetValue(destinationDisplay, out var destinationPath)
-                && (File.Exists(destinationPath) || Directory.Exists(destinationPath)))
+            var destinationPath = destinationItem.FullPath;
+            if (File.Exists(destinationPath) || Directory.Exists(destinationPath))
             {
                 PreviewWindow.OpenPathWithShell(destinationPath);
             }
@@ -1332,12 +1344,12 @@ public partial class MainWindow : Window
     private void RenameSelectedItem()
     {
         var sourceLocation = GetSelectedSourceLocation();
-        if (sourceLocation is null || SourceItemListView.SelectedItem is not string selectedDisplay)
+        if (sourceLocation is null || SourceItemListView.SelectedItem is not FileItemRow selectedItem)
         {
             return;
         }
 
-        var path = ResolveSourcePath(selectedDisplay, sourceLocation.Path);
+        var path = selectedItem.FullPath;
         if (!File.Exists(path) && !Directory.Exists(path))
         {
             return;
@@ -2199,9 +2211,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (SourceItemListView.SelectedItems.Count == 1 && SourceItemListView.SelectedItem is string display)
+        if (SourceItemListView.SelectedItems.Count == 1 && SourceItemListView.SelectedItem is FileItemRow selectedItem)
         {
-            TransferSelectedTextBlock.Text = ResolveSourcePath(display, sourceLocation.Path);
+            TransferSelectedTextBlock.Text = selectedItem.FullPath;
             return;
         }
 
@@ -2448,28 +2460,14 @@ public partial class MainWindow : Window
 
     private string? ResolveSelectedPreviewPath()
     {
-        if (SourceItemListView.SelectedItem is string sourceDisplay)
+        if (SourceItemListView.SelectedItem is FileItemRow sourceItem)
         {
-            var sourceLocation = GetSelectedSourceLocation();
-            if (sourceLocation is not null)
-            {
-                return ResolveSourcePath(sourceDisplay, sourceLocation.Path);
-            }
+            return sourceItem.FullPath;
         }
 
-        if (DestinationItemListView.SelectedItem is string destinationDisplay)
+        if (DestinationItemListView.SelectedItem is FileItemRow destinationItem)
         {
-            if (_destinationPathByDisplay.TryGetValue(destinationDisplay, out var mapped))
-            {
-                return mapped;
-            }
-
-            var destinationLocation = GetSelectedDestinationLocation();
-            if (destinationLocation is not null)
-            {
-                var name = ExtractNameFromItemDisplay(destinationDisplay);
-                return Path.Combine(destinationLocation.Path, name);
-            }
+            return destinationItem.FullPath;
         }
 
         return null;
@@ -2564,5 +2562,73 @@ public partial class MainWindow : Window
         {
             return null;
         }
+    }
+
+    private List<string> GetSelectedSourcePaths()
+    {
+        return SourceItemListView.SelectedItems
+            .OfType<FileItemRow>()
+            .Select(item => item.FullPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private List<string> GetSelectedDestinationPaths()
+    {
+        return DestinationItemListView.SelectedItems
+            .OfType<FileItemRow>()
+            .Select(item => item.FullPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void SourceColumnVisibility_OnChanged(object sender, RoutedEventArgs e)
+    {
+        ApplyColumnVisibility();
+    }
+
+    private void DestinationColumnVisibility_OnChanged(object sender, RoutedEventArgs e)
+    {
+        ApplyColumnVisibility();
+    }
+
+    private void ApplyColumnVisibility()
+    {
+        if (SourceNameColumn is not null)
+        {
+            SourceNameColumn.Width = SourceShowNameColumnCheckBox?.IsChecked == true ? DefaultNameColumnWidth : 0;
+        }
+
+        if (SourceModifiedColumn is not null)
+        {
+            SourceModifiedColumn.Width = SourceShowModifiedColumnCheckBox?.IsChecked == true ? DefaultModifiedColumnWidth : 0;
+        }
+
+        if (DestinationNameColumn is not null)
+        {
+            DestinationNameColumn.Width = DestinationShowNameColumnCheckBox?.IsChecked == true ? DefaultNameColumnWidth : 0;
+        }
+
+        if (DestinationModifiedColumn is not null)
+        {
+            DestinationModifiedColumn.Width = DestinationShowModifiedColumnCheckBox?.IsChecked == true ? DefaultModifiedColumnWidth : 0;
+        }
+    }
+
+    private sealed class FileItemRow
+    {
+        public string FullPath { get; init; } = string.Empty;
+
+        public string Name { get; init; } = string.Empty;
+
+        public bool IsFolder { get; init; }
+
+        public string TypeGlyph { get; init; } = "•";
+
+        public DateTimeOffset? ModifiedUtc { get; init; }
+
+        public string ModifiedDisplay { get; init; } = string.Empty;
     }
 }

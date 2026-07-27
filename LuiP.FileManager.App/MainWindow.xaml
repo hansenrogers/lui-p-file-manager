@@ -164,7 +164,6 @@
                 <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" AutomationProperties.Name="Refresh file lists" />
                     <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" AutomationProperties.Name="Preview selected item" />
-                    <Button Content="Properties" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="PropertiesButton_OnClick" AutomationProperties.Name="Show properties for selected item" />
                     <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
                     <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
                     <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
@@ -217,9 +216,8 @@
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Shortcuts" FontSize="16" FontWeight="SemiBold" Margin="0,0,12,0" VerticalAlignment="Center" />
-                    <Button Content="+ Add Shortcut" Padding="12,8" Margin="0,0,8,0" MinWidth="140" Click="AddShortcutButton_OnClick" />
-                    <Button Content="Remove Shortcut" Padding="12,8" Margin="0,0,8,0" MinWidth="140" Click="RemoveShortcutButton_OnClick" />
-                    <Button Content="Open Shortcut" Padding="12,8" MinWidth="130" Click="OpenShortcutButton_OnClick" />
+                    <Button Content="+" Padding="12,8" Margin="0,0,8,0" MinWidth="44" FontSize="18" Click="AddShortcutButton_OnClick" ToolTip="Add selected file/folder/app as shortcut" />
+                    <Button Content="-" Padding="12,8" Margin="0,0,8,0" MinWidth="44" FontSize="18" Click="RemoveShortcutButton_OnClick" ToolTip="Remove selected shortcut" />
                 </StackPanel>
 
                 <TextBlock Grid.Column="1"
@@ -306,12 +304,23 @@
                         <ComboBoxItem Content="Last 30 Days" />
                         <ComboBoxItem Content="This Year" />
                     </ComboBox>
-                    <ComboBox x:Name="SourceSortComboBox" Grid.Row="3" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="SourceSortComboBox_OnSelectionChanged" AutomationProperties.Name="Source item sort order">
-                        <ComboBoxItem Content="Name (A to Z)" IsSelected="True" />
-                        <ComboBoxItem Content="Name (Z to A)" />
-                        <ComboBoxItem Content="Date Modified (Newest)" />
-                        <ComboBoxItem Content="Date Modified (Oldest)" />
-                    </ComboBox>
+                    <Grid Grid.Row="3" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Sort:" VerticalAlignment="Center" Foreground="#FF4A5E80" Margin="0,0,6,0" />
+                            <Button Content="A↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortNameAscButton_OnClick" ToolTip="Sort by name ascending" />
+                            <Button Content="A↓" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortNameDescButton_OnClick" ToolTip="Sort by name descending" />
+                            <Button Content="D↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortDateNewestButton_OnClick" ToolTip="Sort by date modified newest" />
+                            <Button Content="D↓" MinWidth="44" Height="28" Click="SourceSortDateOldestButton_OnClick" ToolTip="Sort by date modified oldest" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <CheckBox x:Name="SourceShowNameColumnCheckBox" Content="Name" IsChecked="True" Margin="0,0,10,0" Checked="SourceColumnVisibility_OnChanged" Unchecked="SourceColumnVisibility_OnChanged" />
+                            <CheckBox x:Name="SourceShowModifiedColumnCheckBox" Content="Modified" IsChecked="True" Checked="SourceColumnVisibility_OnChanged" Unchecked="SourceColumnVisibility_OnChanged" />
+                        </StackPanel>
+                    </Grid>
                     <Grid Grid.Row="4" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -320,7 +329,14 @@
                         <Button x:Name="SourceUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="SourceUpButton_OnClick" />
                         <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="15" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
+                                <GridViewColumn x:Name="SourceNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
+                                <GridViewColumn x:Name="SourceModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
+                            </GridView>
+                        </ListView.View>
                         <ListView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Open" Click="SourceContextOpen_OnClick" />
@@ -369,12 +385,23 @@
                         <ComboBoxItem Content="Last 30 Days" />
                         <ComboBoxItem Content="This Year" />
                     </ComboBox>
-                    <ComboBox x:Name="DestinationSortComboBox" Grid.Row="3" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="DestinationSortComboBox_OnSelectionChanged" AutomationProperties.Name="Destination item sort order">
-                        <ComboBoxItem Content="Name (A to Z)" IsSelected="True" />
-                        <ComboBoxItem Content="Name (Z to A)" />
-                        <ComboBoxItem Content="Date Modified (Newest)" />
-                        <ComboBoxItem Content="Date Modified (Oldest)" />
-                    </ComboBox>
+                    <Grid Grid.Row="3" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Sort:" VerticalAlignment="Center" Foreground="#FF4A5E80" Margin="0,0,6,0" />
+                            <Button Content="A↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortNameAscButton_OnClick" ToolTip="Sort by name ascending" />
+                            <Button Content="A↓" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortNameDescButton_OnClick" ToolTip="Sort by name descending" />
+                            <Button Content="D↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortDateNewestButton_OnClick" ToolTip="Sort by date modified newest" />
+                            <Button Content="D↓" MinWidth="44" Height="28" Click="DestinationSortDateOldestButton_OnClick" ToolTip="Sort by date modified oldest" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <CheckBox x:Name="DestinationShowNameColumnCheckBox" Content="Name" IsChecked="True" Margin="0,0,10,0" Checked="DestinationColumnVisibility_OnChanged" Unchecked="DestinationColumnVisibility_OnChanged" />
+                            <CheckBox x:Name="DestinationShowModifiedColumnCheckBox" Content="Modified" IsChecked="True" Checked="DestinationColumnVisibility_OnChanged" Unchecked="DestinationColumnVisibility_OnChanged" />
+                        </StackPanel>
+                    </Grid>
                     <Grid Grid.Row="4" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -383,7 +410,14 @@
                         <Button x:Name="DestinationUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="DestinationUpButton_OnClick" />
                         <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="15" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
+                                <GridViewColumn x:Name="DestinationNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
+                                <GridViewColumn x:Name="DestinationModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
+                            </GridView>
+                        </ListView.View>
                         <ListView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Open" Click="DestinationContextOpen_OnClick" />
