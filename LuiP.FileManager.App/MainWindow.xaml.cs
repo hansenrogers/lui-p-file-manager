@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private bool _isIndexing;
     private bool _hasStartedAutoIndex;
     private bool _isUiInitialized;
+    private bool _startupInitialized;
     private TimeSpan? _lastIndexDuration;
 
     public MainWindow()
@@ -70,14 +71,6 @@ public partial class MainWindow : Window
         _indexReconcileTimer.Tick += IndexReconcileTimer_OnTick;
 
         InitializeComponent();
-        RestoreUiState();
-        ApplyAppPreferences();
-        InitializeLocationsFromRepository();
-        ConfigureIndexWatchers();
-        RefreshShortcuts();
-        _isUiInitialized = true;
-        RefreshAllViews();
-        UpdateTransferContextBar();
 
         SizeChanged += MainWindow_OnUiChanged;
         LocationChanged += MainWindow_OnUiChanged;
@@ -88,6 +81,20 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (!_startupInitialized)
+        {
+            _startupInitialized = true;
+
+            RestoreUiState();
+            ApplyAppPreferences();
+            InitializeLocationsFromRepository();
+            ConfigureIndexWatchers();
+            RefreshShortcuts();
+            _isUiInitialized = true;
+            RefreshAllViews();
+            UpdateTransferContextBar();
+        }
+
         _ = RefreshLastIndexedStateAsync();
         _indexReconcileTimer.Start();
         StartBackgroundIndexingIfIdle();

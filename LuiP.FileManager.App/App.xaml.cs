@@ -13,6 +13,7 @@ namespace LuiP.FileManager.App;
 public partial class App : Application
 {
 	private static readonly IAppPathsProvider _pathsProvider = new WindowsAppPathsProvider();
+	private bool _mainWindowShown;
 
 	protected override void OnStartup(StartupEventArgs e)
 	{
@@ -22,10 +23,26 @@ public partial class App : Application
 		EnsureInfrastructureInitialized();
 
 		base.OnStartup(e);
+		MainWindow? mainWindow = null;
 
-		var mainWindow = new MainWindow();
-		MainWindow = mainWindow;
-		mainWindow.Show();
+		try
+		{
+			mainWindow = new MainWindow();
+			MainWindow = mainWindow;
+			mainWindow.Show();
+			_mainWindowShown = true;
+		}
+		catch (Exception ex)
+		{
+			LogUnhandledException(ex, "Application.OnStartup");
+			MessageBox.Show(
+				$"Startup failed:\n{ex.Message}\n\nDetails were written to diagnostics logs.",
+				"Lui-P File Manager Error",
+				MessageBoxButton.OK,
+				MessageBoxImage.Error);
+			Shutdown(-1);
+			return;
+		}
 
 		if (TryGetShellCopyRequest(e.Args, out var shellRequest))
 		{
@@ -49,24 +66,43 @@ public partial class App : Application
 			"Lui-P File Manager Error",
 			MessageBoxButton.OK,
 			MessageBoxImage.Error);
+
+		if (!_mainWindowShown || MainWindow is null || !MainWindow.IsVisible)
+		{
+			e.Handled = true;
+			Shutdown(-1);
+			return;
+		}
+
 		e.Handled = true;
 	}
 
 	private static void LogUnhandledException(Exception ex, string source)
 	{
+		if (TryWriteCrashLog(_pathsProvider.GetDiagnosticsLogRoot(), ex, source))
+		{
+			return;
+		}
+
+		var fallbackRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LuiPFileManager", "logs");
+		_ = TryWriteCrashLog(fallbackRoot, ex, source);
+	}
+
+	private static bool TryWriteCrashLog(string logRoot, Exception ex, string source)
+	{
 		try
 		{
-			var logRoot = _pathsProvider.GetDiagnosticsLogRoot();
 			Directory.CreateDirectory(logRoot);
 			var logPath = Path.Combine(logRoot, "crash.log");
 			var entry =
 				$"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}] {source}{Environment.NewLine}" +
 				$"{ex}{Environment.NewLine}{Environment.NewLine}";
 			File.AppendAllText(logPath, entry);
+			return true;
 		}
 		catch
 		{
-			// Avoid secondary failures while writing crash diagnostics.
+			return false;
 		}
 	}
 
