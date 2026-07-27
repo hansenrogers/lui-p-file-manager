@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private readonly List<FileSystemWatcher> _indexWatchers = new();
     private bool _isIndexing;
     private bool _hasStartedAutoIndex;
+    private bool _isUiInitialized;
     private TimeSpan? _lastIndexDuration;
 
     public MainWindow()
@@ -74,6 +75,7 @@ public partial class MainWindow : Window
         InitializeLocationsFromRepository();
         ConfigureIndexWatchers();
         RefreshShortcuts();
+        _isUiInitialized = true;
         RefreshAllViews();
         UpdateTransferContextBar();
 
@@ -463,11 +465,21 @@ public partial class MainWindow : Window
 
     private void SourceSearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
         RefreshSourceItems();
     }
 
     private void DestinationSearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
         RefreshDestinationItems();
     }
 
@@ -483,12 +495,22 @@ public partial class MainWindow : Window
 
     private void SourceDateFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
         _sourceDateFilter = ParseDateFilterPreset(SourceDateFilterComboBox.SelectedIndex);
         RefreshSourceItems();
     }
 
     private void DestinationDateFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
         _destinationDateFilter = ParseDateFilterPreset(DestinationDateFilterComboBox.SelectedIndex);
         RefreshDestinationItems();
     }
@@ -507,6 +529,11 @@ public partial class MainWindow : Window
 
     private void SourceLocationListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
         var selected = GetSelectedSourceLocation();
         _currentSourcePath = selected?.Path;
         if (SelectedSourceRootTextBlock is not null)
@@ -521,6 +548,11 @@ public partial class MainWindow : Window
 
     private void DestinationLocationListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
         var selected = GetSelectedDestinationLocation();
         _currentDestinationPath = selected?.Path;
         if (SelectedDestinationRootTextBlock is not null)
