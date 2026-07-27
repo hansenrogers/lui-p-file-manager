@@ -25,6 +25,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="#FF1D2A44" />
             <Setter Property="Padding" Value="14,8" />
+            <Setter Property="MinHeight" Value="38" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -53,12 +54,14 @@
             <Setter Property="BorderBrush" Value="#FFC7D6EC" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="MinHeight" Value="36" />
         </Style>
 
         <Style TargetType="ComboBox">
             <Setter Property="BorderBrush" Value="#FFC7D6EC" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="MinHeight" Value="32" />
         </Style>
 
         <Style TargetType="GroupBox">
@@ -85,9 +88,9 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Lui-P File Manager" FontSize="26" FontWeight="SemiBold" Foreground="#FF143056" Margin="0,0,16,0" />
-                    <Button Content="Activity Log" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ActivityLogButton_OnClick" />
-                    <Button Content="Settings" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="SettingsButton_OnClick" />
-                    <Button Content="About" Padding="14,8" MinWidth="90" Click="AboutButton_OnClick" />
+                    <Button Content="Activity Log" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ActivityLogButton_OnClick" AutomationProperties.Name="Open activity log" />
+                    <Button Content="Settings" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="SettingsButton_OnClick" AutomationProperties.Name="Open settings" />
+                    <Button Content="About" Padding="14,8" MinWidth="90" Click="AboutButton_OnClick" AutomationProperties.Name="Open about information" />
                 </StackPanel>
 
                 <Border Grid.Row="0"
@@ -119,14 +122,14 @@
                 </Border>
 
                 <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" />
-                    <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" />
-                    <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" />
-                    <CheckBox x:Name="VerifyChecksumCheckBox" Content="Verify Large Files (SHA-256)" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="For large copied files, compute and compare SHA-256 after copy." />
+                    <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" AutomationProperties.Name="Refresh file lists" />
+                    <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" AutomationProperties.Name="Preview selected item" />
+                    <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
+                    <CheckBox x:Name="VerifyChecksumCheckBox" Content="Verify Large Files (SHA-256)" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="For large copied files, compute and compare SHA-256 after copy." AutomationProperties.Name="Enable large-file checksum verification" />
                     <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
                     <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
                     <Button x:Name="ResetLayoutButton" Content="Reset Layout" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ResetLayoutButton_OnClick" />
-                    <Button Content="Rebuild Index" Padding="14,8" MinWidth="120" Click="RebuildIndexButton_OnClick" />
+                    <Button Content="Rebuild Index" Padding="14,8" MinWidth="120" Click="RebuildIndexButton_OnClick" AutomationProperties.Name="Open index rebuild window" />
                 </StackPanel>
 
                 <Border Grid.Row="1"
@@ -260,7 +263,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBox Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search configured sources" IsReadOnly="True" Text="Configured source roots" />
-                    <ListView x:Name="SourceLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="SourceLocationListView_OnSelectionChanged" />
+                    <ListView x:Name="SourceLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="SourceLocationListView_OnSelectionChanged" AutomationProperties.Name="Source locations list" KeyboardNavigation.TabNavigation="Continue" />
                 </Grid>
             </GroupBox>
 
@@ -276,8 +279,8 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBlock Text="Search source files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
-                    <TextBox x:Name="SourceSearchTextBox" Grid.Row="1" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search files and folders" TextChanged="SourceSearchTextBox_OnTextChanged" />
-                    <ComboBox x:Name="SourceDateFilterComboBox" Grid.Row="2" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="SourceDateFilterComboBox_OnSelectionChanged">
+                    <TextBox x:Name="SourceSearchTextBox" Grid.Row="1" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search files and folders" TextChanged="SourceSearchTextBox_OnTextChanged" AutomationProperties.Name="Search source files and folders" />
+                    <ComboBox x:Name="SourceDateFilterComboBox" Grid.Row="2" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="SourceDateFilterComboBox_OnSelectionChanged" AutomationProperties.Name="Source date filter">
                         <ComboBoxItem Content="All Dates" IsSelected="True" />
                         <ComboBoxItem Content="Today" />
                         <ComboBoxItem Content="Last 7 Days" />
@@ -292,7 +295,7 @@
                         <Button x:Name="SourceUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="SourceUpButton_OnClick" />
                         <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" />
+                    <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue" />
                 </Grid>
             </GroupBox>
 
@@ -305,7 +308,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBox Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search configured destinations" IsReadOnly="True" Text="Configured destination roots" />
-                    <ListView x:Name="DestinationLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="DestinationLocationListView_OnSelectionChanged" />
+                    <ListView x:Name="DestinationLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="DestinationLocationListView_OnSelectionChanged" AutomationProperties.Name="Destination locations list" KeyboardNavigation.TabNavigation="Continue" />
                 </Grid>
             </GroupBox>
 
@@ -321,8 +324,8 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBlock Text="Search destination files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
-                    <TextBox x:Name="DestinationSearchTextBox" Grid.Row="1" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search destination folder" TextChanged="DestinationSearchTextBox_OnTextChanged" />
-                    <ComboBox x:Name="DestinationDateFilterComboBox" Grid.Row="2" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="DestinationDateFilterComboBox_OnSelectionChanged">
+                    <TextBox x:Name="DestinationSearchTextBox" Grid.Row="1" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search destination folder" TextChanged="DestinationSearchTextBox_OnTextChanged" AutomationProperties.Name="Search destination files and folders" />
+                    <ComboBox x:Name="DestinationDateFilterComboBox" Grid.Row="2" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="DestinationDateFilterComboBox_OnSelectionChanged" AutomationProperties.Name="Destination date filter">
                         <ComboBoxItem Content="All Dates" IsSelected="True" />
                         <ComboBoxItem Content="Today" />
                         <ComboBoxItem Content="Last 7 Days" />
@@ -337,7 +340,7 @@
                         <Button x:Name="DestinationUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="DestinationUpButton_OnClick" />
                         <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" />
+                    <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue" />
                 </Grid>
             </GroupBox>
         </Grid>
