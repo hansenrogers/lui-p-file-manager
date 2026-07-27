@@ -37,7 +37,7 @@ The CI workflow runs on each push and pull request to `main` and performs:
 
 ## Release Automation
 
-The release workflow runs when pushing a tag matching `v*` (example: `v1.0.0`) or via manual dispatch. It:
+The release workflow runs when pushing a tag matching `v*` (example: `v1.0.0`) or via manual dispatch with a `tag` input. It:
 
 - builds and publishes the app for `win-x64`
 - zips publish output
