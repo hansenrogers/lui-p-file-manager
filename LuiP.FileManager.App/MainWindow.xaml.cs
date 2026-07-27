@@ -52,8 +52,12 @@ public partial class MainWindow : Window
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
     private bool _sourceShowModifiedColumn = true;
     private bool _destinationShowModifiedColumn = true;
+    private bool _isSourceLocationsColumnCollapsed;
+    private bool _isDestinationLocationsColumnCollapsed;
     private ItemSortMode _sourceSortMode = ItemSortMode.NameAscending;
     private ItemSortMode _destinationSortMode = ItemSortMode.NameAscending;
+    private static readonly GridLength SourceLocationsExpandedWidth = new(2, GridUnitType.Star);
+    private static readonly GridLength DestinationLocationsExpandedWidth = new(2, GridUnitType.Star);
     private const double DefaultNameColumnWidth = 260;
     private const double DefaultModifiedColumnWidth = 170;
     private List<string> _pendingCutPaths = new();
@@ -88,6 +92,7 @@ public partial class MainWindow : Window
         _indexReconcileTimer.Tick += IndexReconcileTimer_OnTick;
 
         InitializeComponent();
+        ApplyLocationColumnVisibility();
 
         SizeChanged += MainWindow_OnUiChanged;
         LocationChanged += MainWindow_OnUiChanged;
@@ -1843,8 +1848,78 @@ public partial class MainWindow : Window
         Width = 1500;
         Height = 900;
         WindowState = WindowState.Normal;
+        _isSourceLocationsColumnCollapsed = false;
+        _isDestinationLocationsColumnCollapsed = false;
+        ApplyLocationColumnVisibility();
         StatusTextBlock.Text = "Layout reset to default window size.";
         SaveUiState();
+    }
+
+    private void ToggleSourceLocationsColumnButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _isSourceLocationsColumnCollapsed = !_isSourceLocationsColumnCollapsed;
+        ApplyLocationColumnVisibility();
+    }
+
+    private void ToggleDestinationLocationsColumnButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _isDestinationLocationsColumnCollapsed = !_isDestinationLocationsColumnCollapsed;
+        ApplyLocationColumnVisibility();
+    }
+
+    private void ApplyLocationColumnVisibility()
+    {
+        if (SourceLocationsColumn is not null)
+        {
+            SourceLocationsColumn.MinWidth = _isSourceLocationsColumnCollapsed ? 0 : 220;
+            SourceLocationsColumn.Width = _isSourceLocationsColumnCollapsed ? new GridLength(0) : SourceLocationsExpandedWidth;
+        }
+
+        if (SourceLocationSplitterColumn is not null)
+        {
+            SourceLocationSplitterColumn.Width = _isSourceLocationsColumnCollapsed ? new GridLength(0) : new GridLength(5);
+        }
+
+        if (SourceLocationsGroupBox is not null)
+        {
+            SourceLocationsGroupBox.Visibility = _isSourceLocationsColumnCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (SourceLocationsGridSplitter is not null)
+        {
+            SourceLocationsGridSplitter.Visibility = _isSourceLocationsColumnCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (ToggleSourceLocationsColumnButton is not null)
+        {
+            ToggleSourceLocationsColumnButton.Content = _isSourceLocationsColumnCollapsed ? "Show Source Locations" : "Hide Source Locations";
+        }
+
+        if (DestinationLocationsColumn is not null)
+        {
+            DestinationLocationsColumn.MinWidth = _isDestinationLocationsColumnCollapsed ? 0 : 220;
+            DestinationLocationsColumn.Width = _isDestinationLocationsColumnCollapsed ? new GridLength(0) : DestinationLocationsExpandedWidth;
+        }
+
+        if (DestinationLocationSplitterColumn is not null)
+        {
+            DestinationLocationSplitterColumn.Width = _isDestinationLocationsColumnCollapsed ? new GridLength(0) : new GridLength(5);
+        }
+
+        if (DestinationLocationsGroupBox is not null)
+        {
+            DestinationLocationsGroupBox.Visibility = _isDestinationLocationsColumnCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (DestinationLocationsGridSplitter is not null)
+        {
+            DestinationLocationsGridSplitter.Visibility = _isDestinationLocationsColumnCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (ToggleDestinationLocationsColumnButton is not null)
+        {
+            ToggleDestinationLocationsColumnButton.Content = _isDestinationLocationsColumnCollapsed ? "Show Destination Locations" : "Hide Destination Locations";
+        }
     }
 
     private void RebuildIndexButton_OnClick(object sender, RoutedEventArgs e)
