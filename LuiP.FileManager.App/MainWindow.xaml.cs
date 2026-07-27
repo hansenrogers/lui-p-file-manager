@@ -1379,6 +1379,47 @@ public partial class MainWindow : Window
         UpdateTransferContextBar();
     }
 
+    private void PropertiesButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        ShowPropertiesForSelection();
+    }
+
+    private void SourceContextOpen_OnClick(object sender, RoutedEventArgs e)
+    {
+        SourceItemListView.Focus();
+        OpenSelectedItem();
+    }
+
+    private void SourceContextPreview_OnClick(object sender, RoutedEventArgs e)
+    {
+        SourceItemListView.Focus();
+        PreviewSelectedButton_OnClick(this, new RoutedEventArgs());
+    }
+
+    private void SourceContextProperties_OnClick(object sender, RoutedEventArgs e)
+    {
+        SourceItemListView.Focus();
+        ShowPropertiesForSelection();
+    }
+
+    private void DestinationContextOpen_OnClick(object sender, RoutedEventArgs e)
+    {
+        DestinationItemListView.Focus();
+        OpenSelectedItem();
+    }
+
+    private void DestinationContextPreview_OnClick(object sender, RoutedEventArgs e)
+    {
+        DestinationItemListView.Focus();
+        PreviewSelectedButton_OnClick(this, new RoutedEventArgs());
+    }
+
+    private void DestinationContextProperties_OnClick(object sender, RoutedEventArgs e)
+    {
+        DestinationItemListView.Focus();
+        ShowPropertiesForSelection();
+    }
+
     private void ResetLayoutButton_OnClick(object sender, RoutedEventArgs e)
     {
         Width = 1500;

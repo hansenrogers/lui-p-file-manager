@@ -124,6 +124,7 @@
                 <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" AutomationProperties.Name="Refresh file lists" />
                     <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" AutomationProperties.Name="Preview selected item" />
+                    <Button Content="Properties" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="PropertiesButton_OnClick" AutomationProperties.Name="Show properties for selected item" />
                     <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
                     <CheckBox x:Name="VerifyChecksumCheckBox" Content="Verify Large Files (SHA-256)" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="For large copied files, compute and compare SHA-256 after copy." AutomationProperties.Name="Enable large-file checksum verification" />
                     <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
@@ -295,7 +296,16 @@
                         <Button x:Name="SourceUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="SourceUpButton_OnClick" />
                         <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue" />
+                    <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
+                        <ListView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Open" Click="SourceContextOpen_OnClick" />
+                                <MenuItem Header="Preview" Click="SourceContextPreview_OnClick" />
+                                <Separator />
+                                <MenuItem Header="Properties" Click="SourceContextProperties_OnClick" />
+                            </ContextMenu>
+                        </ListView.ContextMenu>
+                    </ListView>
                 </Grid>
             </GroupBox>
 
@@ -340,7 +350,16 @@
                         <Button x:Name="DestinationUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="DestinationUpButton_OnClick" />
                         <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue" />
+                    <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
+                        <ListView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Open" Click="DestinationContextOpen_OnClick" />
+                                <MenuItem Header="Preview" Click="DestinationContextPreview_OnClick" />
+                                <Separator />
+                                <MenuItem Header="Properties" Click="DestinationContextProperties_OnClick" />
+                            </ContextMenu>
+                        </ListView.ContextMenu>
+                    </ListView>
                 </Grid>
             </GroupBox>
         </Grid>
