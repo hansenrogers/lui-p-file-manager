@@ -775,6 +775,100 @@ public partial class MainWindow : Window
         UpdateTransferContextBar();
     }
 
+    private void SourceAddLocationButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var editor = new LocationEditorWindow(_locationRepository, LocationKind.Source)
+        {
+            Owner = this
+        };
+
+        if (editor.ShowDialog() == true)
+        {
+            InitializeLocationsFromRepository();
+            ConfigureIndexWatchers();
+            RefreshAllViews();
+            _ = EnsureIndexBuiltAsync();
+            StatusTextBlock.Text = "Source locations updated.";
+        }
+    }
+
+    private void SourceRemoveLocationButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedSourceLocation();
+        if (selected is null)
+        {
+            MessageBox.Show(this, "Select a source location to remove.", "Source Locations", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            this,
+            $"Remove source location '{selected.Name}'?\n\nPath: {selected.Path}",
+            "Remove Source Location",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (confirm != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        _locationRepository.DeleteAsync(selected.Id, LocationKind.Source, CancellationToken.None).GetAwaiter().GetResult();
+        InitializeLocationsFromRepository();
+        ConfigureIndexWatchers();
+        RefreshAllViews();
+        _ = EnsureIndexBuiltAsync();
+        StatusTextBlock.Text = $"Removed source location: {selected.Name}";
+    }
+
+    private void DestinationAddLocationButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var editor = new LocationEditorWindow(_locationRepository, LocationKind.Destination)
+        {
+            Owner = this
+        };
+
+        if (editor.ShowDialog() == true)
+        {
+            InitializeLocationsFromRepository();
+            ConfigureIndexWatchers();
+            RefreshAllViews();
+            _ = EnsureIndexBuiltAsync();
+            StatusTextBlock.Text = "Destination locations updated.";
+        }
+    }
+
+    private void DestinationRemoveLocationButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedDestinationLocation();
+        if (selected is null)
+        {
+            MessageBox.Show(this, "Select a destination location to remove.", "Destination Locations", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            this,
+            $"Remove destination location '{selected.Name}'?\n\nPath: {selected.Path}",
+            "Remove Destination Location",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (confirm != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        _locationRepository.DeleteAsync(selected.Id, LocationKind.Destination, CancellationToken.None).GetAwaiter().GetResult();
+        InitializeLocationsFromRepository();
+        ConfigureIndexWatchers();
+        RefreshAllViews();
+        _ = EnsureIndexBuiltAsync();
+        StatusTextBlock.Text = $"Removed destination location: {selected.Name}";
+    }
+
     private void SourceItemListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (SourceItemListView.SelectedItem is not FileItemRow selectedItem)
