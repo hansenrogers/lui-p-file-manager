@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     private DateFilterPreset _sourceDateFilter = DateFilterPreset.AllDates;
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
     private List<string> _pendingCutPaths = new();
+    private bool _verifyLargeFileChecksumByDefault;
     private long _checksumThresholdBytes = 32L * 1024L * 1024L;
     private string? _currentSourcePath;
     private string? _currentDestinationPath;
@@ -177,7 +178,7 @@ public partial class MainWindow : Window
     private void ApplyAppPreferences()
     {
         var preferences = _preferencesStore.Load();
-        VerifyChecksumCheckBox.IsChecked = preferences.VerifyLargeFileChecksumByDefault;
+        _verifyLargeFileChecksumByDefault = preferences.VerifyLargeFileChecksumByDefault;
         _checksumThresholdBytes = preferences.ChecksumThresholdBytes > 0
             ? preferences.ChecksumThresholdBytes
             : 32L * 1024L * 1024L;
@@ -508,6 +509,12 @@ public partial class MainWindow : Window
     {
         var selected = GetSelectedSourceLocation();
         _currentSourcePath = selected?.Path;
+        if (SelectedSourceRootTextBlock is not null)
+        {
+            SelectedSourceRootTextBlock.Text = selected is null
+                ? "Selected: none"
+                : $"Selected: {selected.Name} ({selected.Path})";
+        }
         RefreshSourceItems();
         UpdateTransferContextBar();
     }
@@ -516,6 +523,12 @@ public partial class MainWindow : Window
     {
         var selected = GetSelectedDestinationLocation();
         _currentDestinationPath = selected?.Path;
+        if (SelectedDestinationRootTextBlock is not null)
+        {
+            SelectedDestinationRootTextBlock.Text = selected is null
+                ? "Selected: none"
+                : $"Selected: {selected.Name} ({selected.Path})";
+        }
         RefreshDestinationItems();
         UpdateTransferContextBar();
     }
@@ -717,7 +730,7 @@ public partial class MainWindow : Window
                 DestinationPath = destinationBasePath,
                 ConflictResolution = conflictResolution,
                 ApplyToAllConflicts = applyToAll,
-                VerifyChecksumForLargeFiles = VerifyChecksumCheckBox.IsChecked == true,
+                VerifyChecksumForLargeFiles = _verifyLargeFileChecksumByDefault,
                 ChecksumThresholdBytes = _checksumThresholdBytes
             };
 
@@ -1444,14 +1457,13 @@ public partial class MainWindow : Window
 
     private void ActivityLogButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var window = new ActivityLogWindow(_activityLogRepository, _undoService, _fileOperationService, () =>
+        var window = new ActivityLogWindow(_activityLogRepository, _undoService, _fileOperationService, _appPathsProvider.GetDiagnosticsLogRoot(), () =>
         {
             RefreshAllViews();
             _ = EnsureIndexBuiltAsync();
         }, () =>
         {
-            var verify = VerifyChecksumCheckBox.IsChecked == true;
-            return (verify, _checksumThresholdBytes);
+            return (_verifyLargeFileChecksumByDefault, _checksumThresholdBytes);
         })
         {
             Owner = this
@@ -1543,7 +1555,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetIndexingUiState(false, $"Indexing warning: {ex.Message}", 0, 1);
+            AppendIndexDiagnostics("Auto index run failed", ex);
+            SetIndexingUiState(false, "Index issue logged. Open Activity Log for details.", 0, 1);
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         finally
@@ -1808,7 +1821,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetIndexingUiState(false, $"Index update warning: {ex.Message}", 0, 1);
+            AppendIndexDiagnostics($"Index update failed for location '{location.Name}'", ex);
+            SetIndexingUiState(false, "Index update issue logged. Open Activity Log for details.", 0, 1);
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         finally
@@ -1829,35 +1843,6 @@ public partial class MainWindow : Window
 
     private void SetIndexingUiState(bool isRunning, string message, int completedLocations, int totalLocations)
     {
-        if (IndexingNowTextBlock is not null)
-        {
-            IndexingNowTextBlock.Text = message;
-        }
-
-        if (IndexingProgressBar is not null)
-        {
-            if (totalLocations > 0)
-            {
-                IndexingProgressBar.IsIndeterminate = false;
-                IndexingProgressBar.Value = Math.Clamp((double)completedLocations / totalLocations * 100d, 0d, 100d);
-            }
-            else
-            {
-                IndexingProgressBar.IsIndeterminate = isRunning;
-                IndexingProgressBar.Value = 0;
-            }
-        }
-
-        if (CancelIndexingButton is not null)
-        {
-            CancelIndexingButton.IsEnabled = isRunning;
-        }
-
-        if (StatusTextBlock is not null)
-        {
-            StatusTextBlock.Text = message;
-        }
-
         if (HeaderIndexingTextBlock is not null)
         {
             HeaderIndexingTextBlock.Text = message;
@@ -1882,6 +1867,24 @@ public partial class MainWindow : Window
             HeaderIndexingDot.Fill = isRunning
                 ? System.Windows.Media.Brushes.OrangeRed
                 : System.Windows.Media.Brushes.ForestGreen;
+        }
+    }
+
+    private void AppendIndexDiagnostics(string context, Exception ex)
+    {
+        try
+        {
+            var logRoot = _appPathsProvider.GetDiagnosticsLogRoot();
+            Directory.CreateDirectory(logRoot);
+            var logPath = Path.Combine(logRoot, "indexing.log");
+            var entry =
+                $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}] {context}{Environment.NewLine}" +
+                $"{ex}{Environment.NewLine}{Environment.NewLine}";
+            File.AppendAllText(logPath, entry);
+        }
+        catch
+        {
+            // Best-effort diagnostics write; keep UI responsive if disk logging fails.
         }
     }
 
@@ -2170,16 +2173,16 @@ public partial class MainWindow : Window
         var helpText =
             "How To Use Lui-P File Manager\n\n" +
             "1) Pick locations\n" +
-            "- Column A: choose a source root\n" +
-            "- Column C: choose a destination root\n\n" +
+            "- Choose a source root in Source Locations\n" +
+            "- Choose a destination root in Destination Locations\n\n" +
             "2) Browse and select\n" +
-            "- Column B: browse/select source files or folders\n" +
-            "- Column D: browse destination content\n" +
+            "- Browse/select source files or folders in Source Items\n" +
+            "- Browse destination content in Destination Items\n" +
             "- Double-click folders to drill in\n\n" +
             "3) Copy safely\n" +
-            "- Click Copy -> Destination or drag from B to D\n" +
+            "- Click Copy -> Destination or drag from Source Items to Destination Items\n" +
             "- Conflicts prompt Replace / Keep Both / Cancel\n" +
-            "- Optional checksum verification protects large-file copies\n\n" +
+            "- Enable large-file checksum verification in Settings\n\n" +
             "4) Search and filters\n" +
             "- Use search/date filters in Columns B and D\n" +
             "- Rebuild Index refreshes indexed search data\n\n" +

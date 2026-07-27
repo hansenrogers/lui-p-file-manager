@@ -13,6 +13,7 @@ public partial class ActivityLogWindow : Window
     private readonly IFileOperationService _fileOperationService;
     private readonly Action? _onOperationCompleted;
     private readonly Func<(bool VerifyChecksums, long ThresholdBytes)>? _retryCopyChecksumDefaults;
+    private readonly string _diagnosticsLogRoot;
     private IReadOnlyList<FileOperationRecord> _loadedRecords = Array.Empty<FileOperationRecord>();
     private IReadOnlyList<OperationItemRecord> _loadedItems = Array.Empty<OperationItemRecord>();
 
@@ -20,12 +21,14 @@ public partial class ActivityLogWindow : Window
         IActivityLogRepository activityLogRepository,
         IUndoService undoService,
         IFileOperationService fileOperationService,
+        string diagnosticsLogRoot,
         Action? onOperationCompleted = null,
         Func<(bool VerifyChecksums, long ThresholdBytes)>? retryCopyChecksumDefaults = null)
     {
         _activityLogRepository = activityLogRepository;
         _undoService = undoService;
         _fileOperationService = fileOperationService;
+        _diagnosticsLogRoot = diagnosticsLogRoot;
         _onOperationCompleted = onOperationCompleted;
         _retryCopyChecksumDefaults = retryCopyChecksumDefaults;
         InitializeComponent();
@@ -400,6 +403,19 @@ public partial class ActivityLogWindow : Window
         }
 
         MessageBox.Show(this, $"CSV exported to:\n{outputPath}", "Export CSV", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OpenDiagnosticsButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(_diagnosticsLogRoot);
+            PreviewWindow.OpenPathWithShell(_diagnosticsLogRoot);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Unable to open diagnostics folder.\n\n{ex.Message}", "Diagnostics", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void ExportReportButton_OnClick(object sender, RoutedEventArgs e)
