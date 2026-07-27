@@ -6,6 +6,7 @@ namespace LuiP.FileManager.Infrastructure.Services;
 
 public sealed class SqliteIndexService : IIndexService
 {
+    private static readonly SemaphoreSlim RebuildSemaphore = new(1, 1);
     private readonly IAppPathsProvider _pathsProvider;
     private readonly ILocationRepository _locationRepository;
 
@@ -17,6 +18,9 @@ public sealed class SqliteIndexService : IIndexService
 
     public async Task RebuildAllAsync(CancellationToken cancellationToken)
     {
+        await RebuildSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
         var sources = await _locationRepository.GetByKindAsync(LocationKind.Source, cancellationToken).ConfigureAwait(false);
         var destinations = await _locationRepository.GetByKindAsync(LocationKind.Destination, cancellationToken).ConfigureAwait(false);
 
@@ -25,10 +29,18 @@ public sealed class SqliteIndexService : IIndexService
             cancellationToken.ThrowIfCancellationRequested();
             await RebuildLocationInternalAsync(location, cancellationToken).ConfigureAwait(false);
         }
+        }
+        finally
+        {
+            RebuildSemaphore.Release();
+        }
     }
 
     public async Task RebuildLocationAsync(string locationId, CancellationToken cancellationToken)
     {
+        await RebuildSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
         var sources = await _locationRepository.GetByKindAsync(LocationKind.Source, cancellationToken).ConfigureAwait(false);
         var destinations = await _locationRepository.GetByKindAsync(LocationKind.Destination, cancellationToken).ConfigureAwait(false);
 
@@ -39,6 +51,11 @@ public sealed class SqliteIndexService : IIndexService
         }
 
         await RebuildLocationInternalAsync(target, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            RebuildSemaphore.Release();
+        }
     }
 
     public async Task<IReadOnlyList<IndexLocationStatus>> GetLocationStatusesAsync(CancellationToken cancellationToken)
@@ -168,43 +185,46 @@ LIMIT $limit;";
             }
 
             var now = DateTimeOffset.UtcNow;
-            var buffer = new List<(string FullPath, string ParentPath, string Name, string? Extension, long? SizeBytes, DateTimeOffset? CreatedUtc, DateTimeOffset? ModifiedUtc, bool IsFolder)>();
+            var enumerationOptions = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                ReturnSpecialDirectories = false
+            };
 
-            foreach (var path in Directory.EnumerateFileSystemEntries(location.Path, "*", SearchOption.AllDirectories))
+            foreach (var path in Directory.EnumerateFileSystemEntries(location.Path, "*", enumerationOptions))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var isFolder = Directory.Exists(path);
-                var info = isFolder ? null : new FileInfo(path);
-                var dirInfo = new DirectoryInfo(path);
-
+                bool isFolder;
                 DateTimeOffset? createdUtc;
                 DateTimeOffset? modifiedUtc;
-                if (isFolder)
-                {
-                    createdUtc = dirInfo.CreationTimeUtc;
-                    modifiedUtc = dirInfo.LastWriteTimeUtc;
-                }
-                else
-                {
-                    createdUtc = info?.CreationTimeUtc;
-                    modifiedUtc = info?.LastWriteTimeUtc;
-                }
+                long? sizeBytes;
 
-                buffer.Add((
-                    FullPath: path,
-                    ParentPath: Path.GetDirectoryName(path) ?? string.Empty,
-                    Name: Path.GetFileName(path),
-                    Extension: isFolder ? null : Path.GetExtension(path),
-                    SizeBytes: isFolder ? null : info?.Length,
-                    CreatedUtc: createdUtc,
-                    ModifiedUtc: modifiedUtc,
-                    IsFolder: isFolder));
-            }
-
-            foreach (var item in buffer)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    isFolder = Directory.Exists(path);
+                    if (isFolder)
+                    {
+                        var dirInfo = new DirectoryInfo(path);
+                        createdUtc = dirInfo.CreationTimeUtc;
+                        modifiedUtc = dirInfo.LastWriteTimeUtc;
+                        sizeBytes = null;
+                    }
+                    else
+                    {
+                        var fileInfo = new FileInfo(path);
+                        createdUtc = fileInfo.CreationTimeUtc;
+                        modifiedUtc = fileInfo.LastWriteTimeUtc;
+                        sizeBytes = fileInfo.Length;
+                    }
+                }
+                catch
+                {
+                    // Skip entries that become inaccessible or invalid during traversal.
+                    continue;
+                }
 
                 await using var insert = connection.CreateCommand();
                 insert.CommandText = @"
@@ -237,16 +257,16 @@ VALUES
     $last_indexed_utc
 );";
 
-                insert.Parameters.AddWithValue("$item_key", BuildItemKey(location.Id, item.FullPath));
+                insert.Parameters.AddWithValue("$item_key", BuildItemKey(location.Id, path));
                 insert.Parameters.AddWithValue("$location_id", location.Id);
-                insert.Parameters.AddWithValue("$full_path", item.FullPath);
-                insert.Parameters.AddWithValue("$parent_path", item.ParentPath);
-                insert.Parameters.AddWithValue("$name", item.Name);
-                insert.Parameters.AddWithValue("$extension", (object?)item.Extension ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$size_bytes", (object?)item.SizeBytes ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$created_utc", (object?)item.CreatedUtc?.UtcDateTime.ToString("O") ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$modified_utc", (object?)item.ModifiedUtc?.UtcDateTime.ToString("O") ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$is_folder", item.IsFolder ? 1 : 0);
+                insert.Parameters.AddWithValue("$full_path", path);
+                insert.Parameters.AddWithValue("$parent_path", Path.GetDirectoryName(path) ?? string.Empty);
+                insert.Parameters.AddWithValue("$name", Path.GetFileName(path));
+                insert.Parameters.AddWithValue("$extension", isFolder ? DBNull.Value : (object?)Path.GetExtension(path) ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$size_bytes", (object?)sizeBytes ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$created_utc", (object?)createdUtc?.UtcDateTime.ToString("O") ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$modified_utc", (object?)modifiedUtc?.UtcDateTime.ToString("O") ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$is_folder", isFolder ? 1 : 0);
                 insert.Parameters.AddWithValue("$last_indexed_utc", now.UtcDateTime.ToString("O"));
 
                 await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -344,7 +364,8 @@ ON CONFLICT(location_id) DO UPDATE SET
         {
             DataSource = _pathsProvider.GetDatabasePath(),
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared
+            Cache = SqliteCacheMode.Shared,
+            DefaultTimeout = 30
         }.ToString();
 
         var connection = new SqliteConnection(connectionString);
