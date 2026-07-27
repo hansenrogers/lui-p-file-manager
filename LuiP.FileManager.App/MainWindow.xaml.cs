@@ -1906,6 +1906,9 @@ public partial class MainWindow : Window
                 HeaderLastIndexedTextBlock.Text = _lastIndexDuration is null
                     ? "Last indexed: not yet"
                     : $"Last indexed: not yet | Last scan duration: {FormatDuration(_lastIndexDuration.Value)}";
+                HeaderLastIndexedTextBlock.Foreground = _lastIndexDuration is null
+                    ? System.Windows.Media.Brushes.SteelBlue
+                    : GetDurationBrush(_lastIndexDuration.Value);
                 return;
             }
 
@@ -1913,12 +1916,16 @@ public partial class MainWindow : Window
             HeaderLastIndexedTextBlock.Text = _lastIndexDuration is null
                 ? $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}"
                 : $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt} | Last scan duration: {FormatDuration(_lastIndexDuration.Value)}";
+            HeaderLastIndexedTextBlock.Foreground = _lastIndexDuration is null
+                ? System.Windows.Media.Brushes.SteelBlue
+                : GetDurationBrush(_lastIndexDuration.Value);
         }
         catch
         {
             if (HeaderLastIndexedTextBlock is not null)
             {
                 HeaderLastIndexedTextBlock.Text = "Last indexed: unavailable";
+                HeaderLastIndexedTextBlock.Foreground = System.Windows.Media.Brushes.DimGray;
             }
         }
     }
@@ -1941,6 +1948,21 @@ public partial class MainWindow : Window
         }
 
         return $"{(int)duration.TotalHours}h {duration.Minutes}m {duration.Seconds}s";
+    }
+
+    private static System.Windows.Media.Brush GetDurationBrush(TimeSpan duration)
+    {
+        if (duration.TotalSeconds < 30)
+        {
+            return System.Windows.Media.Brushes.ForestGreen;
+        }
+
+        if (duration.TotalMinutes < 2)
+        {
+            return System.Windows.Media.Brushes.Goldenrod;
+        }
+
+        return System.Windows.Media.Brushes.IndianRed;
     }
 
     private void CancelIndexingButton_OnClick(object sender, RoutedEventArgs e)
