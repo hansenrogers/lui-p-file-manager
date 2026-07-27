@@ -3,8 +3,10 @@ using System.Windows.Input;
 using System.Windows;
 using System.Windows.Threading;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Collections.Specialized;
 using System.Collections.Concurrent;
+using System.Windows.Media;
 using LuiP.FileManager.Core.Models;
 using LuiP.FileManager.Core.Services;
 using LuiP.FileManager.App.Persistence;
@@ -1160,6 +1162,89 @@ public partial class MainWindow : Window
 
         var data = new DataObject(DataFormats.FileDrop, fullPaths);
         DragDrop.DoDragDrop(SourceItemListView, data, DragDropEffects.Copy);
+    }
+
+    private void SourceItemListView_OnPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListView listView)
+        {
+            ShowColumnHeaderMenuForList(listView, isSource: true, e);
+        }
+    }
+
+    private void DestinationItemListView_OnPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListView listView)
+        {
+            ShowColumnHeaderMenuForList(listView, isSource: false, e);
+        }
+    }
+
+    private void ShowColumnHeaderMenuForList(ListView listView, bool isSource, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        var header = FindVisualParent<GridViewColumnHeader>(source);
+        if (header is null)
+        {
+            return;
+        }
+
+        var isModifiedVisible = isSource ? _sourceShowModifiedColumn : _destinationShowModifiedColumn;
+
+        var toggleModified = new MenuItem
+        {
+            Header = isModifiedVisible ? "Hide Modified Column" : "Show Modified Column",
+            IsCheckable = true,
+            IsChecked = isModifiedVisible
+        };
+        toggleModified.Click += (_, _) =>
+        {
+            if (isSource)
+            {
+                _sourceShowModifiedColumn = !_sourceShowModifiedColumn;
+            }
+            else
+            {
+                _destinationShowModifiedColumn = !_destinationShowModifiedColumn;
+            }
+
+            ApplyColumnVisibility();
+        };
+
+        var nameInfo = new MenuItem
+        {
+            Header = "Name column is always visible",
+            IsEnabled = false
+        };
+
+        var menu = new ContextMenu();
+        menu.Items.Add(toggleModified);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(nameInfo);
+        menu.PlacementTarget = header;
+        menu.Placement = PlacementMode.MousePoint;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        var current = child;
+        while (current is not null)
+        {
+            if (current is T typed)
+            {
+                return typed;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private async void DeleteSelectedButton_OnClick(object sender, RoutedEventArgs e)
@@ -2671,56 +2756,6 @@ public partial class MainWindow : Window
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-    }
-
-    private void SourceColumnHeaderContextMenu_OnOpened(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ContextMenu menu)
-        {
-            return;
-        }
-
-        var toggleItem = menu.Items
-            .OfType<MenuItem>()
-            .FirstOrDefault(item => string.Equals(item.Tag as string, "ModifiedToggle", StringComparison.Ordinal));
-        if (toggleItem is null)
-        {
-            return;
-        }
-
-        toggleItem.IsChecked = _sourceShowModifiedColumn;
-        toggleItem.Header = _sourceShowModifiedColumn ? "Hide Modified Column" : "Show Modified Column";
-    }
-
-    private void DestinationColumnHeaderContextMenu_OnOpened(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ContextMenu menu)
-        {
-            return;
-        }
-
-        var toggleItem = menu.Items
-            .OfType<MenuItem>()
-            .FirstOrDefault(item => string.Equals(item.Tag as string, "ModifiedToggle", StringComparison.Ordinal));
-        if (toggleItem is null)
-        {
-            return;
-        }
-
-        toggleItem.IsChecked = _destinationShowModifiedColumn;
-        toggleItem.Header = _destinationShowModifiedColumn ? "Hide Modified Column" : "Show Modified Column";
-    }
-
-    private void SourceToggleModifiedColumnMenuItem_OnClick(object sender, RoutedEventArgs e)
-    {
-        _sourceShowModifiedColumn = !_sourceShowModifiedColumn;
-        ApplyColumnVisibility();
-    }
-
-    private void DestinationToggleModifiedColumnMenuItem_OnClick(object sender, RoutedEventArgs e)
-    {
-        _destinationShowModifiedColumn = !_destinationShowModifiedColumn;
-        ApplyColumnVisibility();
     }
 
     private void ApplyColumnVisibility()

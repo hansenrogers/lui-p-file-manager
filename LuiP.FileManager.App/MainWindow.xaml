@@ -104,35 +104,6 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SourceItemColumnHeaderStyle" TargetType="{x:Type GridViewColumnHeader}">
-            <Setter Property="ContextMenu">
-                <Setter.Value>
-                    <ContextMenu Opened="SourceColumnHeaderContextMenu_OnOpened">
-                        <MenuItem Header="Show Modified Column"
-                                  Tag="ModifiedToggle"
-                                  IsCheckable="True"
-                                  Click="SourceToggleModifiedColumnMenuItem_OnClick" />
-                        <Separator />
-                        <MenuItem Header="Name column is always visible" IsEnabled="False" />
-                    </ContextMenu>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DestinationItemColumnHeaderStyle" TargetType="{x:Type GridViewColumnHeader}">
-            <Setter Property="ContextMenu">
-                <Setter.Value>
-                    <ContextMenu Opened="DestinationColumnHeaderContextMenu_OnOpened">
-                        <MenuItem Header="Show Modified Column"
-                                  Tag="ModifiedToggle"
-                                  IsCheckable="True"
-                                  Click="DestinationToggleModifiedColumnMenuItem_OnClick" />
-                        <Separator />
-                        <MenuItem Header="Name column is always visible" IsEnabled="False" />
-                    </ContextMenu>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#FFFFFFFF" BorderBrush="#FFD8D8D8" BorderThickness="0,0,0,1" Padding="12">
@@ -353,9 +324,9 @@
                         <Button x:Name="SourceUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="SourceUpButton_OnClick" />
                         <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" PreviewMouseRightButtonUp="SourceItemListView_OnPreviewMouseRightButtonUp" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
-                            <GridView ColumnHeaderContainerStyle="{StaticResource SourceItemColumnHeaderStyle}">
+                            <GridView>
                                 <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
                                 <GridViewColumn x:Name="SourceNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
                                 <GridViewColumn x:Name="SourceModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
@@ -446,9 +417,9 @@
                         <Button x:Name="DestinationUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="DestinationUpButton_OnClick" />
                         <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" PreviewMouseRightButtonUp="DestinationItemListView_OnPreviewMouseRightButtonUp" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
-                            <GridView ColumnHeaderContainerStyle="{StaticResource DestinationItemColumnHeaderStyle}">
+                            <GridView>
                                 <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
                                 <GridViewColumn x:Name="DestinationNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
                                 <GridViewColumn x:Name="DestinationModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
