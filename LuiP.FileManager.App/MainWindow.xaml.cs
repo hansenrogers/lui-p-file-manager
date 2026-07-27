@@ -84,6 +84,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
+        _ = RefreshLastIndexedStateAsync();
         _indexReconcileTimer.Start();
         StartBackgroundIndexingIfIdle();
     }
@@ -1499,6 +1500,7 @@ public partial class MainWindow : Window
 
         try
         {
+            SetIndexingUiState(true, "Index startup scan beginning...", 0, 0);
             await Task.Yield();
 
             var activeLocations = _sourceLocations
@@ -1519,21 +1521,27 @@ public partial class MainWindow : Window
             {
                 token.ThrowIfCancellationRequested();
                 SetIndexingUiState(true, $"Indexing: {location.Name} ({location.Path})", completed, activeLocations.Count);
-                await _indexService.RebuildLocationAsync(location.Id, token).ConfigureAwait(true);
+                await Task.Run(async () =>
+                {
+                    await _indexService.RebuildLocationAsync(location.Id, token).ConfigureAwait(false);
+                }, token).ConfigureAwait(true);
                 completed++;
                 SetIndexingUiState(true, $"Indexed: {location.Name}", completed, activeLocations.Count);
             }
 
             SetIndexingUiState(false, $"Index ready. Indexed {completed} location(s).", activeLocations.Count, activeLocations.Count);
             RefreshAllViews();
+            await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
             SetIndexingUiState(false, "Indexing stopped.", 0, 1);
+            await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             SetIndexingUiState(false, $"Indexing warning: {ex.Message}", 0, 1);
+            await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         finally
         {
@@ -1551,6 +1559,7 @@ public partial class MainWindow : Window
         }
 
         _hasStartedAutoIndex = true;
+        SetIndexingUiState(true, "Index startup scan queued...", 0, 0);
         _ = EnsureIndexBuiltAsync();
     }
 
@@ -1784,13 +1793,18 @@ public partial class MainWindow : Window
         try
         {
             SetIndexingUiState(true, $"{reason}: {location.Name}", 0, 1);
-            await _indexService.RebuildLocationAsync(location.Id, CancellationToken.None).ConfigureAwait(true);
+            await Task.Run(async () =>
+            {
+                await _indexService.RebuildLocationAsync(location.Id, CancellationToken.None).ConfigureAwait(false);
+            }).ConfigureAwait(true);
             SetIndexingUiState(false, $"Index updated: {location.Name}", 1, 1);
             RefreshAllViews();
+            await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             SetIndexingUiState(false, $"Index update warning: {ex.Message}", 0, 1);
+            await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         finally
         {
@@ -1863,6 +1877,40 @@ public partial class MainWindow : Window
             HeaderIndexingDot.Fill = isRunning
                 ? System.Windows.Media.Brushes.OrangeRed
                 : System.Windows.Media.Brushes.ForestGreen;
+        }
+    }
+
+    private async Task RefreshLastIndexedStateAsync()
+    {
+        try
+        {
+            var statuses = await _indexService.GetLocationStatusesAsync(CancellationToken.None).ConfigureAwait(true);
+            var latest = statuses
+                .Where(x => x.LastIndexedUtc.HasValue)
+                .Select(x => x.LastIndexedUtc!.Value)
+                .DefaultIfEmpty()
+                .Max();
+
+            if (HeaderLastIndexedTextBlock is null)
+            {
+                return;
+            }
+
+            if (latest == default)
+            {
+                HeaderLastIndexedTextBlock.Text = "Last indexed: not yet";
+                return;
+            }
+
+            var localTime = latest.ToLocalTime();
+            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}";
+        }
+        catch
+        {
+            if (HeaderLastIndexedTextBlock is not null)
+            {
+                HeaderLastIndexedTextBlock.Text = "Last indexed: unavailable";
+            }
         }
     }
 
