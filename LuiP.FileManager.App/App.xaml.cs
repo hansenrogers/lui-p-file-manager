@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
+using System.IO;
 using LuiP.FileManager.Core.Models;
 using LuiP.FileManager.Core.Services;
 using LuiP.FileManager.Infrastructure.Services;
@@ -11,8 +12,13 @@ namespace LuiP.FileManager.App;
 /// </summary>
 public partial class App : Application
 {
+	private static readonly IAppPathsProvider _pathsProvider = new WindowsAppPathsProvider();
+
 	protected override void OnStartup(StartupEventArgs e)
 	{
+		AppDomain.CurrentDomain.UnhandledException += CurrentDomain_OnUnhandledException;
+		DispatcherUnhandledException += App_OnDispatcherUnhandledException;
+
 		EnsureInfrastructureInitialized();
 
 		base.OnStartup(e);
@@ -24,6 +30,44 @@ public partial class App : Application
 		if (TryGetShellCopyRequest(e.Args, out var shellRequest))
 		{
 			_ = mainWindow.HandleShellCopyAsync(shellRequest.Paths, shellRequest.DestinationId);
+		}
+	}
+
+	private static void CurrentDomain_OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+	{
+		if (e.ExceptionObject is Exception ex)
+		{
+			LogUnhandledException(ex, "AppDomain.UnhandledException");
+		}
+	}
+
+	private void App_OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+	{
+		LogUnhandledException(e.Exception, "Application.DispatcherUnhandledException");
+		MessageBox.Show(
+			e.Exception.Message,
+			"Lui-P File Manager Error",
+			MessageBoxButton.OK,
+			MessageBoxImage.Error);
+		e.Handled = true;
+		Shutdown();
+	}
+
+	private static void LogUnhandledException(Exception ex, string source)
+	{
+		try
+		{
+			var logRoot = _pathsProvider.GetDiagnosticsLogRoot();
+			Directory.CreateDirectory(logRoot);
+			var logPath = Path.Combine(logRoot, "crash.log");
+			var entry =
+				$"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}] {source}{Environment.NewLine}" +
+				$"{ex}{Environment.NewLine}{Environment.NewLine}";
+			File.AppendAllText(logPath, entry);
+		}
+		catch
+		{
+			// Avoid secondary failures while writing crash diagnostics.
 		}
 	}
 

@@ -2057,14 +2057,27 @@ public partial class MainWindow : Window
         var items = new List<ShortcutListItem>();
         foreach (var shortcut in shortcuts.OrderBy(x => x.SortOrder))
         {
-            _shortcutById[shortcut.Id] = shortcut;
-            items.Add(new ShortcutListItem
+            try
             {
-                Id = shortcut.Id,
-                Label = shortcut.Label,
-                FullPath = shortcut.TargetPath,
-                Icon = TryGetShellIcon(shortcut.TargetPath, shortcut.TargetKind)
-            });
+                _shortcutById[shortcut.Id] = shortcut;
+                items.Add(new ShortcutListItem
+                {
+                    Id = shortcut.Id,
+                    Label = shortcut.Label,
+                    FullPath = shortcut.TargetPath,
+                    Icon = TryGetShellIcon(shortcut.TargetPath, shortcut.TargetKind)
+                });
+            }
+            catch
+            {
+                items.Add(new ShortcutListItem
+                {
+                    Id = shortcut.Id,
+                    Label = shortcut.Label,
+                    FullPath = shortcut.TargetPath,
+                    Icon = null
+                });
+            }
         }
 
         ShortcutListBox.ItemsSource = items;
@@ -2268,25 +2281,32 @@ public partial class MainWindow : Window
             flags |= shgfiUseFileAttributes;
         }
 
-        var infoSize = (uint)Marshal.SizeOf<ShFileInfo>();
-        var result = SHGetFileInfo(path, attributes, out var shFileInfo, infoSize, flags);
-        if (result == IntPtr.Zero || shFileInfo.hIcon == IntPtr.Zero)
-        {
-            return null;
-        }
-
         try
         {
-            var image = Imaging.CreateBitmapSourceFromHIcon(
-                shFileInfo.hIcon,
-                Int32Rect.Empty,
-                BitmapSizeOptions.FromEmptyOptions());
-            image.Freeze();
-            return image;
+            var infoSize = (uint)Marshal.SizeOf<ShFileInfo>();
+            var result = SHGetFileInfo(path, attributes, out var shFileInfo, infoSize, flags);
+            if (result == IntPtr.Zero || shFileInfo.hIcon == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                var image = Imaging.CreateBitmapSourceFromHIcon(
+                    shFileInfo.hIcon,
+                    Int32Rect.Empty,
+                    BitmapSizeOptions.FromEmptyOptions());
+                image.Freeze();
+                return image;
+            }
+            finally
+            {
+                _ = DestroyIcon(shFileInfo.hIcon);
+            }
         }
-        finally
+        catch
         {
-            _ = DestroyIcon(shFileInfo.hIcon);
+            return null;
         }
     }
 
