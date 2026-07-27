@@ -45,3 +45,11 @@ The release workflow runs when pushing a tag matching `v*` (example: `v1.0.0`) o
 - generates a release changelog from git history
 - creates a GitHub release
 - uploads the zip, checksum, and changelog artifacts
+
+### Verify Downloaded Artifact
+
+After downloading a release zip and `.sha256` file, verify integrity:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -ArchivePath .\LuiP.FileManager-win-x64.zip -ChecksumFilePath .\LuiP.FileManager-win-x64.zip.sha256
+```
