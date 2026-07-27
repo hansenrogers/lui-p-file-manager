@@ -48,6 +48,8 @@ public partial class MainWindow : Window
 
     private DateFilterPreset _sourceDateFilter = DateFilterPreset.AllDates;
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
+    private bool _sourceShowModifiedColumn = true;
+    private bool _destinationShowModifiedColumn = true;
     private ItemSortMode _sourceSortMode = ItemSortMode.NameAscending;
     private ItemSortMode _destinationSortMode = ItemSortMode.NameAscending;
     private const double DefaultNameColumnWidth = 260;
@@ -2671,13 +2673,53 @@ public partial class MainWindow : Window
             .ToList();
     }
 
-    private void SourceColumnVisibility_OnChanged(object sender, RoutedEventArgs e)
+    private void SourceColumnHeaderContextMenu_OnOpened(object sender, RoutedEventArgs e)
     {
+        if (sender is not ContextMenu menu)
+        {
+            return;
+        }
+
+        var toggleItem = menu.Items
+            .OfType<MenuItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, "ModifiedToggle", StringComparison.Ordinal));
+        if (toggleItem is null)
+        {
+            return;
+        }
+
+        toggleItem.IsChecked = _sourceShowModifiedColumn;
+        toggleItem.Header = _sourceShowModifiedColumn ? "Hide Modified Column" : "Show Modified Column";
+    }
+
+    private void DestinationColumnHeaderContextMenu_OnOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu)
+        {
+            return;
+        }
+
+        var toggleItem = menu.Items
+            .OfType<MenuItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, "ModifiedToggle", StringComparison.Ordinal));
+        if (toggleItem is null)
+        {
+            return;
+        }
+
+        toggleItem.IsChecked = _destinationShowModifiedColumn;
+        toggleItem.Header = _destinationShowModifiedColumn ? "Hide Modified Column" : "Show Modified Column";
+    }
+
+    private void SourceToggleModifiedColumnMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        _sourceShowModifiedColumn = !_sourceShowModifiedColumn;
         ApplyColumnVisibility();
     }
 
-    private void DestinationColumnVisibility_OnChanged(object sender, RoutedEventArgs e)
+    private void DestinationToggleModifiedColumnMenuItem_OnClick(object sender, RoutedEventArgs e)
     {
+        _destinationShowModifiedColumn = !_destinationShowModifiedColumn;
         ApplyColumnVisibility();
     }
 
@@ -2685,22 +2727,32 @@ public partial class MainWindow : Window
     {
         if (SourceNameColumn is not null)
         {
-            SourceNameColumn.Width = SourceShowNameColumnCheckBox?.IsChecked == true ? DefaultNameColumnWidth : 0;
+            if (SourceNameColumn.Width <= 0)
+            {
+                SourceNameColumn.Width = DefaultNameColumnWidth;
+            }
         }
 
         if (SourceModifiedColumn is not null)
         {
-            SourceModifiedColumn.Width = SourceShowModifiedColumnCheckBox?.IsChecked == true ? DefaultModifiedColumnWidth : 0;
+            SourceModifiedColumn.Width = _sourceShowModifiedColumn
+                ? (SourceModifiedColumn.Width <= 0 ? DefaultModifiedColumnWidth : SourceModifiedColumn.Width)
+                : 0;
         }
 
         if (DestinationNameColumn is not null)
         {
-            DestinationNameColumn.Width = DestinationShowNameColumnCheckBox?.IsChecked == true ? DefaultNameColumnWidth : 0;
+            if (DestinationNameColumn.Width <= 0)
+            {
+                DestinationNameColumn.Width = DefaultNameColumnWidth;
+            }
         }
 
         if (DestinationModifiedColumn is not null)
         {
-            DestinationModifiedColumn.Width = DestinationShowModifiedColumnCheckBox?.IsChecked == true ? DefaultModifiedColumnWidth : 0;
+            DestinationModifiedColumn.Width = _destinationShowModifiedColumn
+                ? (DestinationModifiedColumn.Width <= 0 ? DefaultModifiedColumnWidth : DestinationModifiedColumn.Width)
+                : 0;
         }
     }
 

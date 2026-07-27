@@ -103,6 +103,36 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="SourceItemColumnHeaderStyle" TargetType="{x:Type GridViewColumnHeader}">
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                    <ContextMenu Opened="SourceColumnHeaderContextMenu_OnOpened">
+                        <MenuItem Header="Show Modified Column"
+                                  Tag="ModifiedToggle"
+                                  IsCheckable="True"
+                                  Click="SourceToggleModifiedColumnMenuItem_OnClick" />
+                        <Separator />
+                        <MenuItem Header="Name column is always visible" IsEnabled="False" />
+                    </ContextMenu>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DestinationItemColumnHeaderStyle" TargetType="{x:Type GridViewColumnHeader}">
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                    <ContextMenu Opened="DestinationColumnHeaderContextMenu_OnOpened">
+                        <MenuItem Header="Show Modified Column"
+                                  Tag="ModifiedToggle"
+                                  IsCheckable="True"
+                                  Click="DestinationToggleModifiedColumnMenuItem_OnClick" />
+                        <Separator />
+                        <MenuItem Header="Name column is always visible" IsEnabled="False" />
+                    </ContextMenu>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#FFFFFFFF" BorderBrush="#FFD8D8D8" BorderThickness="0,0,0,1" Padding="12">
@@ -308,10 +338,12 @@
                             <Button Content="D↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortDateNewestButton_OnClick" ToolTip="Sort by date modified newest" />
                             <Button Content="D↓" MinWidth="44" Height="28" Click="SourceSortDateOldestButton_OnClick" ToolTip="Sort by date modified oldest" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <CheckBox x:Name="SourceShowNameColumnCheckBox" Content="Name" IsChecked="True" Margin="0,0,10,0" Checked="SourceColumnVisibility_OnChanged" Unchecked="SourceColumnVisibility_OnChanged" />
-                            <CheckBox x:Name="SourceShowModifiedColumnCheckBox" Content="Modified" IsChecked="True" Checked="SourceColumnVisibility_OnChanged" Unchecked="SourceColumnVisibility_OnChanged" />
-                        </StackPanel>
+                        <TextBlock Grid.Column="1"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right"
+                                   Foreground="#FF4A5E80"
+                                   FontSize="12"
+                                   Text="Right-click a column header to show/hide columns" />
                     </Grid>
                     <Grid Grid.Row="4" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
@@ -323,7 +355,7 @@
                     </Grid>
                     <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
-                            <GridView>
+                            <GridView ColumnHeaderContainerStyle="{StaticResource SourceItemColumnHeaderStyle}">
                                 <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
                                 <GridViewColumn x:Name="SourceNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
                                 <GridViewColumn x:Name="SourceModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
@@ -399,10 +431,12 @@
                             <Button Content="D↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortDateNewestButton_OnClick" ToolTip="Sort by date modified newest" />
                             <Button Content="D↓" MinWidth="44" Height="28" Click="DestinationSortDateOldestButton_OnClick" ToolTip="Sort by date modified oldest" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <CheckBox x:Name="DestinationShowNameColumnCheckBox" Content="Name" IsChecked="True" Margin="0,0,10,0" Checked="DestinationColumnVisibility_OnChanged" Unchecked="DestinationColumnVisibility_OnChanged" />
-                            <CheckBox x:Name="DestinationShowModifiedColumnCheckBox" Content="Modified" IsChecked="True" Checked="DestinationColumnVisibility_OnChanged" Unchecked="DestinationColumnVisibility_OnChanged" />
-                        </StackPanel>
+                        <TextBlock Grid.Column="1"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right"
+                                   Foreground="#FF4A5E80"
+                                   FontSize="12"
+                                   Text="Right-click a column header to show/hide columns" />
                     </Grid>
                     <Grid Grid.Row="4" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
@@ -414,7 +448,7 @@
                     </Grid>
                     <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
-                            <GridView>
+                            <GridView ColumnHeaderContainerStyle="{StaticResource DestinationItemColumnHeaderStyle}">
                                 <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
                                 <GridViewColumn x:Name="DestinationNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
                                 <GridViewColumn x:Name="DestinationModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
