@@ -829,6 +829,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (string.Equals(Path.GetExtension(path), ".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                PreviewWindow.OpenPathWithShell(path);
+                StatusTextBlock.Text = "Opened PDF in default app.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Unable to open PDF.\n\n{ex.Message}", "Open PDF", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
+            return;
+        }
+
         var window = new PreviewWindow(path)
         {
             Owner = this
