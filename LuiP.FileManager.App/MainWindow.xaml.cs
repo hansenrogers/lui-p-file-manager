@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows;
 using System.Windows.Threading;
 using System.Collections.Specialized;
+using System.Collections.Concurrent;
 using LuiP.FileManager.Core.Models;
 using LuiP.FileManager.Core.Services;
 using LuiP.FileManager.App.Persistence;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private readonly UiStateStore _uiStateStore;
     private readonly AppPreferencesStore _preferencesStore;
     private readonly DispatcherTimer _uiStateSaveTimer;
+    private readonly DispatcherTimer _indexReconcileTimer;
 
     private readonly List<ConfiguredLocation> _sourceLocations = new();
     private readonly List<ConfiguredLocation> _destinationLocations = new();
@@ -42,6 +44,8 @@ public partial class MainWindow : Window
     private string? _currentSourcePath;
     private string? _currentDestinationPath;
     private CancellationTokenSource? _indexingCts;
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _watcherDebounceByLocation = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<FileSystemWatcher> _indexWatchers = new();
     private bool _isIndexing;
     private bool _hasStartedAutoIndex;
 
@@ -59,11 +63,14 @@ public partial class MainWindow : Window
         _preferencesStore = new AppPreferencesStore(_appPathsProvider);
         _uiStateSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _uiStateSaveTimer.Tick += UiStateSaveTimer_OnTick;
+        _indexReconcileTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        _indexReconcileTimer.Tick += IndexReconcileTimer_OnTick;
 
         InitializeComponent();
         RestoreUiState();
         ApplyAppPreferences();
         InitializeLocationsFromRepository();
+        ConfigureIndexWatchers();
         RefreshShortcuts();
         RefreshAllViews();
         UpdateTransferContextBar();
@@ -77,6 +84,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
+        _indexReconcileTimer.Start();
         StartBackgroundIndexingIfIdle();
     }
 
@@ -139,6 +147,14 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnClosed(object? sender, EventArgs e)
     {
+        _indexReconcileTimer.Stop();
+        DisposeIndexWatchers();
+        foreach (var pair in _watcherDebounceByLocation)
+        {
+            pair.Value.Cancel();
+            pair.Value.Dispose();
+        }
+        _watcherDebounceByLocation.Clear();
         SaveUiState();
     }
 
@@ -1378,6 +1394,7 @@ public partial class MainWindow : Window
         var window = new SettingsWindow(_locationRepository, _indexService, _shellIntegrationService, _appPathsProvider, () =>
         {
             InitializeLocationsFromRepository();
+            ConfigureIndexWatchers();
             RefreshAllViews();
             _ = EnsureIndexBuiltAsync();
         }, () =>
@@ -1466,6 +1483,138 @@ public partial class MainWindow : Window
         }
 
         _hasStartedAutoIndex = true;
+        _ = EnsureIndexBuiltAsync();
+    }
+
+    private void ConfigureIndexWatchers()
+    {
+        DisposeIndexWatchers();
+
+        foreach (var location in _sourceLocations.Concat(_destinationLocations).Where(x => x.IsEnabled))
+        {
+            try
+            {
+                if (!Directory.Exists(location.Path))
+                {
+                    continue;
+                }
+
+                var watcher = new FileSystemWatcher(location.Path)
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.FileName
+                        | NotifyFilters.DirectoryName
+                        | NotifyFilters.LastWrite
+                        | NotifyFilters.Size
+                };
+
+                watcher.Changed += (_, _) => ScheduleLocationReindex(location);
+                watcher.Created += (_, _) => ScheduleLocationReindex(location);
+                watcher.Deleted += (_, _) => ScheduleLocationReindex(location);
+                watcher.Renamed += (_, _) => ScheduleLocationReindex(location);
+                watcher.Error += (_, _) => ScheduleLocationReindex(location);
+                watcher.EnableRaisingEvents = true;
+                _indexWatchers.Add(watcher);
+            }
+            catch
+            {
+                // If a watcher cannot attach (path/network/transient), periodic reconcile still refreshes index state.
+            }
+        }
+    }
+
+    private void DisposeIndexWatchers()
+    {
+        foreach (var watcher in _indexWatchers)
+        {
+            try
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Dispose();
+            }
+            catch
+            {
+                // Ignore cleanup errors during shutdown/reconfigure.
+            }
+        }
+
+        _indexWatchers.Clear();
+    }
+
+    private void ScheduleLocationReindex(ConfiguredLocation location)
+    {
+        var cts = new CancellationTokenSource();
+        _watcherDebounceByLocation.AddOrUpdate(location.Id, cts, (_, existing) =>
+        {
+            existing.Cancel();
+            existing.Dispose();
+            return cts;
+        });
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), cts.Token).ConfigureAwait(false);
+
+                if (_isIndexing)
+                {
+                    return;
+                }
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _ = ReindexSingleLocationAsync(location, "Auto index update");
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // Debounced by a newer change event.
+            }
+            finally
+            {
+                if (_watcherDebounceByLocation.TryGetValue(location.Id, out var latest) && ReferenceEquals(latest, cts))
+                {
+                    _watcherDebounceByLocation.TryRemove(location.Id, out _);
+                }
+
+                cts.Dispose();
+            }
+        });
+    }
+
+    private async Task ReindexSingleLocationAsync(ConfiguredLocation location, string reason)
+    {
+        if (_isIndexing)
+        {
+            return;
+        }
+
+        _isIndexing = true;
+        try
+        {
+            SetIndexingUiState(true, $"{reason}: {location.Name}", 0, 1);
+            await _indexService.RebuildLocationAsync(location.Id, CancellationToken.None).ConfigureAwait(true);
+            SetIndexingUiState(false, $"Index updated: {location.Name}", 1, 1);
+            RefreshAllViews();
+        }
+        catch (Exception ex)
+        {
+            SetIndexingUiState(false, $"Index update warning: {ex.Message}", 0, 1);
+        }
+        finally
+        {
+            _isIndexing = false;
+        }
+    }
+
+    private void IndexReconcileTimer_OnTick(object? sender, EventArgs e)
+    {
+        if (_isIndexing)
+        {
+            return;
+        }
+
         _ = EnsureIndexBuiltAsync();
     }
 
