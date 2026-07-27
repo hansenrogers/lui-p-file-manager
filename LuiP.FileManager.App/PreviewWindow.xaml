@@ -28,7 +28,6 @@
                     <Image x:Name="ImagePreview" Stretch="Uniform" Visibility="Collapsed" />
                     <TextBox x:Name="TextPreview" Visibility="Collapsed" FontFamily="Consolas" FontSize="13" IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
                     <MediaElement x:Name="MediaPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop" />
-                    <WebBrowser x:Name="BrowserPreview" Visibility="Collapsed" />
                     <TextBlock x:Name="UnavailableText" Visibility="Collapsed" FontSize="14" TextWrapping="Wrap" />
                 </Grid>
             </TabItem>

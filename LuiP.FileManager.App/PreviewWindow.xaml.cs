@@ -54,10 +54,10 @@ public partial class PreviewWindow : Window
             return;
         }
 
-        if (ext == ".pdf")
+        if (IsActiveContentExtension(ext))
         {
-            BrowserPreview.Visibility = Visibility.Visible;
-            BrowserPreview.Navigate(new Uri(_targetPath));
+            UnavailableText.Visibility = Visibility.Visible;
+            UnavailableText.Text = "Inline preview is disabled for this file type for safety. Use Open Default to view the file in its associated app.";
             return;
         }
 
@@ -70,7 +70,6 @@ public partial class PreviewWindow : Window
         ImagePreview.Visibility = Visibility.Collapsed;
         TextPreview.Visibility = Visibility.Collapsed;
         MediaPreview.Visibility = Visibility.Collapsed;
-        BrowserPreview.Visibility = Visibility.Collapsed;
         UnavailableText.Visibility = Visibility.Collapsed;
     }
 
@@ -87,6 +86,11 @@ public partial class PreviewWindow : Window
     private static bool IsMediaExtension(string ext)
     {
         return ext is ".mp3" or ".wav" or ".m4a" or ".mp4" or ".mov" or ".wmv" or ".avi";
+    }
+
+    private static bool IsActiveContentExtension(string ext)
+    {
+        return ext is ".pdf" or ".htm" or ".html" or ".mht" or ".mhtml" or ".svg";
     }
 
     private static string ReadTextSafe(string path)

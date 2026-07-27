@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     private string? _currentDestinationPath;
     private CancellationTokenSource? _indexingCts;
     private bool _isIndexing;
+    private bool _hasStartedAutoIndex;
 
     public MainWindow()
     {
@@ -65,12 +66,18 @@ public partial class MainWindow : Window
         InitializeLocationsFromRepository();
         RefreshShortcuts();
         RefreshAllViews();
-        _ = EnsureIndexBuiltAsync();
+        UpdateTransferContextBar();
 
         SizeChanged += MainWindow_OnUiChanged;
         LocationChanged += MainWindow_OnUiChanged;
         StateChanged += MainWindow_OnUiChanged;
         Closed += MainWindow_OnClosed;
+        Loaded += MainWindow_OnLoaded;
+    }
+
+    private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        StartBackgroundIndexingIfIdle();
     }
 
     private void RestoreUiState()
@@ -302,6 +309,7 @@ public partial class MainWindow : Window
             }
 
             SourceItemListView.ItemsSource = displayed;
+            UpdateTransferContextBar();
             return;
         }
 
@@ -316,6 +324,7 @@ public partial class MainWindow : Window
         }
 
         SourceItemListView.ItemsSource = items;
+        UpdateTransferContextBar();
     }
 
     private void RefreshDestinationItems()
@@ -365,6 +374,7 @@ public partial class MainWindow : Window
             }
 
             DestinationItemListView.ItemsSource = displayed;
+            UpdateTransferContextBar();
             return;
         }
 
@@ -379,6 +389,7 @@ public partial class MainWindow : Window
         }
 
         DestinationItemListView.ItemsSource = items;
+        UpdateTransferContextBar();
     }
 
     private ConfiguredLocation? GetSelectedSourceLocation()
@@ -441,6 +452,16 @@ public partial class MainWindow : Window
         RefreshDestinationItems();
     }
 
+    private void SourceItemListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateTransferContextBar();
+    }
+
+    private void DestinationItemListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateTransferContextBar();
+    }
+
     private void SourceDateFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         _sourceDateFilter = ParseDateFilterPreset(SourceDateFilterComboBox.SelectedIndex);
@@ -470,6 +491,7 @@ public partial class MainWindow : Window
         var selected = GetSelectedSourceLocation();
         _currentSourcePath = selected?.Path;
         RefreshSourceItems();
+        UpdateTransferContextBar();
     }
 
     private void DestinationLocationListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -477,6 +499,7 @@ public partial class MainWindow : Window
         var selected = GetSelectedDestinationLocation();
         _currentDestinationPath = selected?.Path;
         RefreshDestinationItems();
+        UpdateTransferContextBar();
     }
 
     private void SourceItemListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1310,6 +1333,7 @@ public partial class MainWindow : Window
     {
         RefreshAllViews();
         StatusTextBlock.Text = "Views refreshed.";
+        UpdateTransferContextBar();
     }
 
     private void ResetLayoutButton_OnClick(object sender, RoutedEventArgs e)
@@ -1434,6 +1458,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private void StartBackgroundIndexingIfIdle()
+    {
+        if (_hasStartedAutoIndex)
+        {
+            return;
+        }
+
+        _hasStartedAutoIndex = true;
+        _ = EnsureIndexBuiltAsync();
+    }
+
     private void SetIndexingUiState(bool isRunning, string message, int completedLocations, int totalLocations)
     {
         if (IndexingNowTextBlock is not null)
@@ -1464,11 +1499,77 @@ public partial class MainWindow : Window
         {
             StatusTextBlock.Text = message;
         }
+
+        if (HeaderIndexingTextBlock is not null)
+        {
+            HeaderIndexingTextBlock.Text = message;
+        }
+
+        if (HeaderIndexingProgressBar is not null)
+        {
+            if (totalLocations > 0)
+            {
+                HeaderIndexingProgressBar.IsIndeterminate = false;
+                HeaderIndexingProgressBar.Value = Math.Clamp((double)completedLocations / totalLocations * 100d, 0d, 100d);
+            }
+            else
+            {
+                HeaderIndexingProgressBar.IsIndeterminate = isRunning;
+                HeaderIndexingProgressBar.Value = 0;
+            }
+        }
+
+        if (HeaderIndexingDot is not null)
+        {
+            HeaderIndexingDot.Fill = isRunning
+                ? System.Windows.Media.Brushes.OrangeRed
+                : System.Windows.Media.Brushes.ForestGreen;
+        }
     }
 
     private void CancelIndexingButton_OnClick(object sender, RoutedEventArgs e)
     {
         _indexingCts?.Cancel();
+    }
+
+    private void UpdateTransferContextBar()
+    {
+        if (TransferSelectedTextBlock is null || TransferDestinationTextBlock is null)
+        {
+            return;
+        }
+
+        var destination = GetSelectedDestinationLocation();
+        if (destination is null)
+        {
+            TransferDestinationTextBlock.Text = "No destination selected";
+        }
+        else
+        {
+            var effectiveDestinationPath = GetCurrentDestinationPath(destination);
+            TransferDestinationTextBlock.Text = effectiveDestinationPath;
+        }
+
+        if (SourceItemListView.SelectedItems.Count == 0)
+        {
+            TransferSelectedTextBlock.Text = "None";
+            return;
+        }
+
+        var sourceLocation = GetSelectedSourceLocation();
+        if (sourceLocation is null)
+        {
+            TransferSelectedTextBlock.Text = $"{SourceItemListView.SelectedItems.Count} item(s) selected";
+            return;
+        }
+
+        if (SourceItemListView.SelectedItems.Count == 1 && SourceItemListView.SelectedItem is string display)
+        {
+            TransferSelectedTextBlock.Text = ResolveSourcePath(display, sourceLocation.Path);
+            return;
+        }
+
+        TransferSelectedTextBlock.Text = $"{SourceItemListView.SelectedItems.Count} item(s) selected";
     }
 
     private void RefreshShortcuts()
