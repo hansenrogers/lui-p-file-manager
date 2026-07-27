@@ -344,7 +344,7 @@ public partial class MainWindow : Window
             var displayed = new List<string>();
             foreach (var result in sortedSearchResults)
             {
-                var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath);
+                var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath, result.ModifiedUtc);
                 _sourcePathByDisplay[display] = result.FullPath;
                 displayed.Add(display);
             }
@@ -414,7 +414,7 @@ public partial class MainWindow : Window
             var displayed = new List<string>();
             foreach (var result in sortedSearchResults)
             {
-                var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath);
+                var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath, result.ModifiedUtc);
                 _destinationPathByDisplay[display] = result.FullPath;
                 displayed.Add(display);
             }
@@ -474,20 +474,40 @@ public partial class MainWindow : Window
     {
         var name = Path.GetFileName(path);
         var marker = Directory.Exists(path) ? "📁" : "📄";
-        return $"{marker} {name}";
+        var modified = FormatModifiedForDisplay(TryGetLastWriteUtc(path));
+        return $"{marker} {name} | Modified: {modified}";
     }
 
-    private static string FormatSearchDisplay(bool isFolder, string name, string fullPath)
+    private static string FormatSearchDisplay(bool isFolder, string name, string fullPath, DateTimeOffset? modifiedUtc)
     {
         var marker = isFolder ? "📁" : "📄";
         var parent = Path.GetDirectoryName(fullPath) ?? string.Empty;
-        return $"{marker} {name} — {parent}";
+        var modified = FormatModifiedForDisplay(modifiedUtc);
+        return $"{marker} {name} — {parent} | Modified: {modified}";
     }
 
     private static string ExtractNameFromItemDisplay(string itemDisplay)
     {
         var parts = itemDisplay.Split(' ', 2);
-        return parts.Length == 2 ? parts[1] : itemDisplay;
+        var value = parts.Length == 2 ? parts[1] : itemDisplay;
+
+        var modifiedToken = value.IndexOf(" | Modified:", StringComparison.Ordinal);
+        if (modifiedToken >= 0)
+        {
+            value = value[..modifiedToken];
+        }
+
+        return value;
+    }
+
+    private static string FormatModifiedForDisplay(DateTimeOffset? modifiedUtc)
+    {
+        if (!modifiedUtc.HasValue)
+        {
+            return "Unknown";
+        }
+
+        return modifiedUtc.Value.ToLocalTime().ToString("yyyy-MM-dd h:mm tt");
     }
 
     private void SourceSearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
