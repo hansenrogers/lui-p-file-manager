@@ -1,0 +1,278 @@
+﻿<Window x:Class="LuiP.FileManager.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:LuiP.FileManager.App"
+        mc:Ignorable="d"
+        Title="Lui-P File Manager"
+        Background="#FFF3F6FB"
+        FontFamily="Segoe UI"
+        MinWidth="1100"
+        MinHeight="700"
+        Width="1500"
+        Height="900"
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="MainWindow_OnPreviewKeyDown">
+    <Window.Resources>
+        <SolidColorBrush x:Key="PanelBgBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#FFD9E2F0" />
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#FF0F62FE" />
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFC7D6EC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#FF1D2A44" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FFF1F6FF" />
+                    <Setter Property="BorderBrush" Value="#FF95B8F2" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FFE4EEFF" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.6" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="BorderBrush" Value="#FFC7D6EC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#FFFFFFFF" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="BorderBrush" Value="#FFC7D6EC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#FFFFFFFF" />
+        </Style>
+
+        <Style TargetType="GroupBox">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderBrush" Value="#FFD3DEEE" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#FFFFFFFF" />
+        </Style>
+    </Window.Resources>
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#FFFFFFFF" BorderBrush="#FFD8D8D8" BorderThickness="0,0,0,1" Padding="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Lui-P File Manager" FontSize="26" FontWeight="SemiBold" Foreground="#FF143056" Margin="0,0,16,0" />
+                    <Button Content="Activity Log" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ActivityLogButton_OnClick" />
+                    <Button Content="Settings" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="SettingsButton_OnClick" />
+                    <Button Content="About" Padding="14,8" MinWidth="90" Click="AboutButton_OnClick" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" />
+                    <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" />
+                    <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" />
+                    <CheckBox x:Name="VerifyChecksumCheckBox" Content="Verify Large Files (SHA-256)" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="For large copied files, compute and compare SHA-256 after copy." />
+                    <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
+                    <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
+                    <Button x:Name="ResetLayoutButton" Content="Reset Layout" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ResetLayoutButton_OnClick" />
+                    <Button Content="Rebuild Index" Padding="14,8" MinWidth="120" Click="RebuildIndexButton_OnClick" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" BorderBrush="#FFD8D8D8" BorderThickness="0,1,0,0" Padding="10" Background="#FFFAFAFA">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Shortcuts" FontSize="16" FontWeight="SemiBold" Margin="0,0,12,0" VerticalAlignment="Center" />
+                    <Button Content="+ Add Shortcut" Padding="12,8" Margin="0,0,8,0" MinWidth="140" Click="AddShortcutButton_OnClick" />
+                    <Button Content="Remove Shortcut" Padding="12,8" Margin="0,0,8,0" MinWidth="140" Click="RemoveShortcutButton_OnClick" />
+                    <Button Content="Open Shortcut" Padding="12,8" MinWidth="130" Click="OpenShortcutButton_OnClick" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           x:Name="StatusTextBlock"
+                           Text="Drop files, folders, or programs here"
+                           VerticalAlignment="Center"
+                           Foreground="#FF525252"
+                           FontSize="14" />
+
+                <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="10" Background="#FFF3F8FF" BorderBrush="#FFD2E3FB" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock x:Name="IndexingNowTextBlock"
+                                   Text="Index idle."
+                                   VerticalAlignment="Center"
+                                   Foreground="#FF234066"
+                                   FontSize="13"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <ProgressBar x:Name="IndexingProgressBar"
+                                     Grid.Column="1"
+                                     Height="14"
+                                     Margin="14,0,14,0"
+                                     VerticalAlignment="Center"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="0" />
+
+                        <Button x:Name="CancelIndexingButton"
+                                Grid.Column="2"
+                                Content="Stop Indexing"
+                                MinWidth="120"
+                                IsEnabled="False"
+                                Click="CancelIndexingButton_OnClick" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" BorderBrush="#FFE2E2E2" BorderThickness="0,1,0,0" Padding="8" Background="#FFFFFFFF">
+            <ListBox x:Name="ShortcutListBox"
+                     Height="68"
+                     FontSize="14"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                     SelectionMode="Single"
+                     MouseDoubleClick="ShortcutListBox_OnMouseDoubleClick">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+            </ListBox>
+        </Border>
+
+        <Grid Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" MinWidth="220" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="3*" MinWidth="260" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="2*" MinWidth="220" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="3*" MinWidth="260" />
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Header="Column A: Source Locations" Padding="8" Grid.Column="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBox Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search configured sources" IsReadOnly="True" Text="Configured source roots" />
+                    <ListView x:Name="SourceLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="SourceLocationListView_OnSelectionChanged" />
+                </Grid>
+            </GroupBox>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+
+            <GroupBox Header="Column B: Source Items" Padding="8" Grid.Column="2">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Search source files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
+                    <TextBox x:Name="SourceSearchTextBox" Grid.Row="1" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search files and folders" TextChanged="SourceSearchTextBox_OnTextChanged" />
+                    <ComboBox x:Name="SourceDateFilterComboBox" Grid.Row="2" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="SourceDateFilterComboBox_OnSelectionChanged">
+                        <ComboBoxItem Content="All Dates" IsSelected="True" />
+                        <ComboBoxItem Content="Today" />
+                        <ComboBoxItem Content="Last 7 Days" />
+                        <ComboBoxItem Content="Last 30 Days" />
+                        <ComboBoxItem Content="This Year" />
+                    </ComboBox>
+                    <Grid Grid.Row="3" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="SourceUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="SourceUpButton_OnClick" />
+                        <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" />
+                </Grid>
+            </GroupBox>
+
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+
+            <GroupBox Header="Column C: Destination Locations" Padding="8" Grid.Column="4">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBox Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search configured destinations" IsReadOnly="True" Text="Configured destination roots" />
+                    <ListView x:Name="DestinationLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="DestinationLocationListView_OnSelectionChanged" />
+                </Grid>
+            </GroupBox>
+
+            <GridSplitter Grid.Column="5" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+
+            <GroupBox Header="Column D: Destination Items" Padding="8" Grid.Column="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Search destination files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
+                    <TextBox x:Name="DestinationSearchTextBox" Grid.Row="1" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search destination folder" TextChanged="DestinationSearchTextBox_OnTextChanged" />
+                    <ComboBox x:Name="DestinationDateFilterComboBox" Grid.Row="2" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="DestinationDateFilterComboBox_OnSelectionChanged">
+                        <ComboBoxItem Content="All Dates" IsSelected="True" />
+                        <ComboBoxItem Content="Today" />
+                        <ComboBoxItem Content="Last 7 Days" />
+                        <ComboBoxItem Content="Last 30 Days" />
+                        <ComboBoxItem Content="This Year" />
+                    </ComboBox>
+                    <Grid Grid.Row="3" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="DestinationUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="DestinationUpButton_OnClick" />
+                        <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="15" SelectionMode="Extended" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" />
+                </Grid>
+            </GroupBox>
+        </Grid>
+    </DockPanel>
+</Window>

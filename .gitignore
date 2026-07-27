@@ -1,0 +1,38 @@
+# Build outputs
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+
+# NuGet
+*.nupkg
+packages/
+
+# Logs and temp
+*.log
+*.tmp
+*.temp
+
+# Test artifacts
+TestResults/
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+
+# Python virtual environment
+.venv/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store

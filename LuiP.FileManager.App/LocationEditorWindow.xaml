@@ -1,0 +1,41 @@
+<Window x:Class="LuiP.FileManager.App.LocationEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Location Editor"
+        Width="980"
+        Height="640"
+        MinWidth="880"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Top" BorderBrush="#FFD8D8D8" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10" Background="#FFF7F7F7">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="HeaderTextBlock" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Add" MinWidth="90" Margin="0,0,8,0" Padding="12,8" Click="AddButton_OnClick" />
+                    <Button Content="Remove" MinWidth="90" Margin="0,0,8,0" Padding="12,8" Click="RemoveButton_OnClick" />
+                    <Button Content="Save" MinWidth="90" Padding="12,8" Click="SaveButton_OnClick" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <DataGrid x:Name="LocationsDataGrid"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  FontSize="14"
+                  RowHeaderWidth="0">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="220" IsReadOnly="True" />
+                <DataGridTextColumn Header="Name" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="180" />
+                <DataGridTextColumn Header="Path" Binding="{Binding Path, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled}" Width="80" />
+                <DataGridTextColumn Header="Order" Binding="{Binding SortOrder, UpdateSourceTrigger=PropertyChanged}" Width="80" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>
