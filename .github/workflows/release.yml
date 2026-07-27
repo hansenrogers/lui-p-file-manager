@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore LuiPFileManager.sln
+
+      - name: Build
+        run: dotnet build LuiPFileManager.sln --configuration Release --no-restore
+
+      - name: Publish app (win-x64)
+        run: dotnet publish LuiP.FileManager.App/LuiP.FileManager.App.csproj --configuration Release --runtime win-x64 --self-contained false --output release/publish
+
+      - name: Create release archive
+        shell: pwsh
+        run: Compress-Archive -Path release/publish/* -DestinationPath release/LuiP.FileManager-win-x64.zip -Force
+
+      - name: Create GitHub release and upload artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/LuiP.FileManager-win-x64.zip
+          generate_release_notes: true
