@@ -252,7 +252,7 @@
                     <DataTemplate>
                         <Border Margin="0,0,8,0" Padding="10,6" BorderBrush="#FFD7E2F2" BorderThickness="1" CornerRadius="8" Background="#FFFFFFFF">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Image Width="20" Height="20" Source="{Binding Icon}" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding Glyph}" FontSize="16" Width="20" Margin="0,0,8,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF203352" />
                             </StackPanel>
                         </Border>

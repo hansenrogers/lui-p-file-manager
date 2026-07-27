@@ -45,12 +45,11 @@ public partial class App : Application
 	{
 		LogUnhandledException(e.Exception, "Application.DispatcherUnhandledException");
 		MessageBox.Show(
-			e.Exception.Message,
+			$"Unexpected error:\n{e.Exception.Message}\n\nDetails were written to diagnostics logs.",
 			"Lui-P File Manager Error",
 			MessageBoxButton.OK,
 			MessageBoxImage.Error);
 		e.Handled = true;
-		Shutdown();
 	}
 
 	private static void LogUnhandledException(Exception ex, string source)
