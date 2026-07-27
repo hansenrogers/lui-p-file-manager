@@ -41,5 +41,7 @@ The release workflow runs when pushing a tag matching `v*` (example: `v1.0.0`) o
 
 - builds and publishes the app for `win-x64`
 - zips publish output
+- generates a SHA256 checksum file for the zip
+- generates a release changelog from git history
 - creates a GitHub release
-- uploads the zip artifact to that release
+- uploads the zip, checksum, and changelog artifacts
