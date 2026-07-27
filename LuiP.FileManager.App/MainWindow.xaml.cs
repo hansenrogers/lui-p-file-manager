@@ -966,7 +966,7 @@ public partial class MainWindow : Window
 
         if (Keyboard.Modifiers == ModifierKeys.Alt && e.Key == Key.Enter)
         {
-            PreviewSelectedButton_OnClick(this, new RoutedEventArgs());
+            ShowPropertiesForSelection();
             e.Handled = true;
             return;
         }
@@ -1066,6 +1066,33 @@ public partial class MainWindow : Window
 
     private void OpenSelectedItem()
     {
+        if (SourceItemListView.IsKeyboardFocusWithin && SourceItemListView.SelectedItem is string focusedSourceDisplay)
+        {
+            var sourceLocation = GetSelectedSourceLocation();
+            if (sourceLocation is null)
+            {
+                return;
+            }
+
+            var sourcePath = ResolveSourcePath(focusedSourceDisplay, sourceLocation.Path);
+            if (File.Exists(sourcePath) || Directory.Exists(sourcePath))
+            {
+                PreviewWindow.OpenPathWithShell(sourcePath);
+            }
+            return;
+        }
+
+        if (DestinationItemListView.IsKeyboardFocusWithin && DestinationItemListView.SelectedItem is string focusedDestinationDisplay)
+        {
+            if (_destinationPathByDisplay.TryGetValue(focusedDestinationDisplay, out var destinationPath)
+                && (File.Exists(destinationPath) || Directory.Exists(destinationPath)))
+            {
+                PreviewWindow.OpenPathWithShell(destinationPath);
+            }
+
+            return;
+        }
+
         if (SourceItemListView.SelectedItem is string sourceDisplay)
         {
             var sourceLocation = GetSelectedSourceLocation();
@@ -1581,6 +1608,128 @@ public partial class MainWindow : Window
                 cts.Dispose();
             }
         });
+    }
+
+    private void ShowPropertiesForSelection()
+    {
+        var paths = ResolveActiveSelectionPaths();
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        if (paths.Count == 1)
+        {
+            var details = BuildPathProperties(paths[0]);
+            var singleWindow = new SimpleInfoWindow("Item Properties", details)
+            {
+                Owner = this
+            };
+            singleWindow.ShowDialog();
+            return;
+        }
+
+        var existing = paths.Where(path => File.Exists(path) || Directory.Exists(path)).ToList();
+        var totalBytes = TryComputeTotalBytes(existing);
+
+        var lines = new List<string>
+        {
+            $"Selected items: {paths.Count}",
+            $"Existing items: {existing.Count}",
+            $"Estimated total bytes: {(totalBytes.HasValue ? totalBytes.Value.ToString("N0") : "Unavailable")}",
+            string.Empty,
+            "Sample paths:"
+        };
+
+        foreach (var path in paths.Take(8))
+        {
+            lines.Add($"- {path}");
+        }
+
+        if (paths.Count > 8)
+        {
+            lines.Add($"- ... and {paths.Count - 8} more");
+        }
+
+        var multiWindow = new SimpleInfoWindow("Selection Properties", string.Join(Environment.NewLine, lines))
+        {
+            Owner = this
+        };
+        multiWindow.ShowDialog();
+    }
+
+    private List<string> ResolveActiveSelectionPaths()
+    {
+        if (SourceItemListView.IsKeyboardFocusWithin)
+        {
+            var sourceLocation = GetSelectedSourceLocation();
+            if (sourceLocation is not null)
+            {
+                return SourceItemListView.SelectedItems
+                    .OfType<string>()
+                    .Select(display => ResolveSourcePath(display, sourceLocation.Path))
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+
+        if (DestinationItemListView.IsKeyboardFocusWithin)
+        {
+            var destination = new List<string>();
+            foreach (var display in DestinationItemListView.SelectedItems.OfType<string>())
+            {
+                if (_destinationPathByDisplay.TryGetValue(display, out var mapped))
+                {
+                    destination.Add(mapped);
+                    continue;
+                }
+
+                var destinationLocation = GetSelectedDestinationLocation();
+                if (destinationLocation is not null)
+                {
+                    var name = ExtractNameFromItemDisplay(display);
+                    destination.Add(Path.Combine(GetCurrentDestinationPath(destinationLocation), name));
+                }
+            }
+
+            return destination
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        var fallback = ResolveSelectedPreviewPath();
+        return fallback is null ? new List<string>() : new List<string> { fallback };
+    }
+
+    private static string BuildPathProperties(string path)
+    {
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            return $"Path does not exist:{Environment.NewLine}{path}";
+        }
+
+        var isFile = File.Exists(path);
+        var info = isFile ? new FileInfo(path) as FileSystemInfo : new DirectoryInfo(path);
+
+        var lines = new List<string>
+        {
+            $"Name: {info.Name}",
+            $"Full Path: {info.FullName}",
+            $"Type: {(isFile ? "File" : "Folder")}",
+            $"Created: {info.CreationTime}",
+            $"Modified: {info.LastWriteTime}"
+        };
+
+        if (isFile)
+        {
+            var fileInfo = (FileInfo)info;
+            lines.Add($"Size: {fileInfo.Length:N0} bytes");
+            lines.Add($"Extension: {fileInfo.Extension}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     private async Task ReindexSingleLocationAsync(ConfiguredLocation location, string reason)
