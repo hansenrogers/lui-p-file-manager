@@ -2165,6 +2165,44 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
+    private void HelpButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var helpText =
+            "How To Use Lui-P File Manager\n\n" +
+            "1) Pick locations\n" +
+            "- Column A: choose a source root\n" +
+            "- Column C: choose a destination root\n\n" +
+            "2) Browse and select\n" +
+            "- Column B: browse/select source files or folders\n" +
+            "- Column D: browse destination content\n" +
+            "- Double-click folders to drill in\n\n" +
+            "3) Copy safely\n" +
+            "- Click Copy -> Destination or drag from B to D\n" +
+            "- Conflicts prompt Replace / Keep Both / Cancel\n" +
+            "- Optional checksum verification protects large-file copies\n\n" +
+            "4) Search and filters\n" +
+            "- Use search/date filters in Columns B and D\n" +
+            "- Rebuild Index refreshes indexed search data\n\n" +
+            "5) Preview and properties\n" +
+            "- Preview Selected opens a safe preview window\n" +
+            "- Properties button (or Alt+Enter) shows item details\n\n" +
+            "6) Undo and operation history\n" +
+            "- Open Activity Log to review, retry, and undo eligible operations\n\n" +
+            "Keyboard shortcuts\n" +
+            "- Ctrl+C/Ctrl+X/Ctrl+V/Ctrl+A\n" +
+            "- F2 rename, Delete, Shift+Delete, Enter open, Alt+Enter properties\n\n" +
+            "Indexing status\n" +
+            "- Top indicator is always visible\n" +
+            "- Duration colors: Green < 30s, Yellow < 2m, Red >= 2m\n" +
+            "- Last indexed date/time and scan duration appear under the indicator.";
+
+        var window = new SimpleInfoWindow("Help - How To Use", helpText)
+        {
+            Owner = this
+        };
+        window.ShowDialog();
+    }
+
     private static long? TryComputeTotalBytes(IReadOnlyList<string> paths)
     {
         try

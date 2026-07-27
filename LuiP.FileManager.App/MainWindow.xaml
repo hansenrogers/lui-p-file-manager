@@ -90,6 +90,7 @@
                     <TextBlock Text="Lui-P File Manager" FontSize="26" FontWeight="SemiBold" Foreground="#FF143056" Margin="0,0,16,0" />
                     <Button Content="Activity Log" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ActivityLogButton_OnClick" AutomationProperties.Name="Open activity log" />
                     <Button Content="Settings" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="SettingsButton_OnClick" AutomationProperties.Name="Open settings" />
+                    <Button Content="Help" Padding="14,8" Margin="0,0,8,0" MinWidth="90" Click="HelpButton_OnClick" AutomationProperties.Name="Open help guide" />
                     <Button Content="About" Padding="14,8" MinWidth="90" Click="AboutButton_OnClick" AutomationProperties.Name="Open about information" />
                 </StackPanel>
 
@@ -124,7 +125,8 @@
                                    Text="Last indexed: not yet"
                                    Margin="18,4,0,0"
                                    Foreground="#FF48607E"
-                                   FontSize="12" />
+                                   FontSize="12"
+                                   ToolTip="Duration colors: Green &lt; 30s, Yellow &lt; 2m, Red &gt;= 2m." />
                     </StackPanel>
                 </Border>
 
