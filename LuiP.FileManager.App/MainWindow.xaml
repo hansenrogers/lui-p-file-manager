@@ -239,12 +239,25 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
                      SelectionMode="Single"
+                     AllowDrop="True"
+                     DragOver="ShortcutListBox_OnDragOver"
+                     Drop="ShortcutListBox_OnDrop"
                      MouseDoubleClick="ShortcutListBox_OnMouseDoubleClick">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Orientation="Horizontal" />
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,8,0" Padding="10,6" BorderBrush="#FFD7E2F2" BorderThickness="1" CornerRadius="8" Background="#FFFFFFFF">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Image Width="20" Height="20" Source="{Binding Icon}" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF203352" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
             </ListBox>
         </Border>
 

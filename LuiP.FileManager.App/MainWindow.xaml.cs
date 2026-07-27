@@ -2,6 +2,10 @@
 using System.Windows.Input;
 using System.Windows;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Collections.Specialized;
 using System.Collections.Concurrent;
 using LuiP.FileManager.Core.Models;
@@ -35,7 +39,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, ConfiguredLocation> _destinationLocationByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _sourcePathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _destinationPathByDisplay = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ShortcutItem> _shortcutByDisplay = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ShortcutItem> _shortcutById = new(StringComparer.Ordinal);
 
     private DateFilterPreset _sourceDateFilter = DateFilterPreset.AllDates;
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
@@ -2048,24 +2052,22 @@ public partial class MainWindow : Window
     private void RefreshShortcuts()
     {
         var shortcuts = _shortcutRepository.GetAllAsync(CancellationToken.None).GetAwaiter().GetResult();
-        _shortcutByDisplay.Clear();
+        _shortcutById.Clear();
 
-        var displays = new List<string>();
+        var items = new List<ShortcutListItem>();
         foreach (var shortcut in shortcuts.OrderBy(x => x.SortOrder))
         {
-            var marker = shortcut.TargetKind switch
+            _shortcutById[shortcut.Id] = shortcut;
+            items.Add(new ShortcutListItem
             {
-                ShortcutTargetKind.File => "📄",
-                ShortcutTargetKind.Folder => "📁",
-                ShortcutTargetKind.Program => "🚀",
-                _ => "•"
-            };
-            var display = $"{marker} {shortcut.Label}";
-            _shortcutByDisplay[display] = shortcut;
-            displays.Add(display);
+                Id = shortcut.Id,
+                Label = shortcut.Label,
+                FullPath = shortcut.TargetPath,
+                Icon = TryGetShellIcon(shortcut.TargetPath, shortcut.TargetKind)
+            });
         }
 
-        ShortcutListBox.ItemsSource = displays;
+        ShortcutListBox.ItemsSource = items;
     }
 
     private void AddShortcutButton_OnClick(object sender, RoutedEventArgs e)
@@ -2077,30 +2079,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        var kind = File.Exists(target)
-            ? ShortcutTargetKind.File
-            : (Directory.Exists(target) ? ShortcutTargetKind.Folder : ShortcutTargetKind.Program);
-
-        var existing = _shortcutRepository.GetAllAsync(CancellationToken.None).GetAwaiter().GetResult();
-        var nextOrder = existing.Count == 0 ? 1 : existing.Max(x => x.SortOrder) + 1;
-
-        var shortcut = new ShortcutItem
-        {
-            Id = Guid.NewGuid().ToString("N"),
-            Label = Path.GetFileName(target),
-            TargetPath = target,
-            TargetKind = kind,
-            SortOrder = nextOrder
-        };
-
-        _shortcutRepository.UpsertAsync(shortcut, CancellationToken.None).GetAwaiter().GetResult();
-        RefreshShortcuts();
-        StatusTextBlock.Text = $"Shortcut added: {shortcut.Label}";
+        var added = AddShortcutsFromPaths(new[] { target });
+        StatusTextBlock.Text = added > 0
+            ? $"Shortcut added: {Path.GetFileName(target)}"
+            : "Shortcut already exists.";
     }
 
     private void RemoveShortcutButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (ShortcutListBox.SelectedItem is not string display || !_shortcutByDisplay.TryGetValue(display, out var shortcut))
+        var shortcut = GetSelectedShortcut();
+        if (shortcut is null)
         {
             MessageBox.Show(this, "Select a shortcut to remove.", "Shortcuts", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -2136,7 +2124,8 @@ public partial class MainWindow : Window
 
     private void OpenSelectedShortcut()
     {
-        if (ShortcutListBox.SelectedItem is not string display || !_shortcutByDisplay.TryGetValue(display, out var shortcut))
+        var shortcut = GetSelectedShortcut();
+        if (shortcut is null)
         {
             MessageBox.Show(this, "Select a shortcut to open.", "Shortcuts", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -2149,6 +2138,193 @@ public partial class MainWindow : Window
         }
 
         PreviewWindow.OpenPathWithShell(shortcut.TargetPath);
+    }
+
+    private ShortcutItem? GetSelectedShortcut()
+    {
+        if (ShortcutListBox.SelectedItem is not ShortcutListItem selected)
+        {
+            return null;
+        }
+
+        return _shortcutById.TryGetValue(selected.Id, out var shortcut)
+            ? shortcut
+            : null;
+    }
+
+    private void ShortcutListBox_OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void ShortcutListBox_OnDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            return;
+        }
+
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] dropped || dropped.Length == 0)
+        {
+            return;
+        }
+
+        var added = AddShortcutsFromPaths(dropped);
+        StatusTextBlock.Text = added > 0
+            ? $"Shortcut(s) added: {added}"
+            : "No new shortcuts were added.";
+    }
+
+    private int AddShortcutsFromPaths(IEnumerable<string> paths)
+    {
+        var validPaths = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Where(path => File.Exists(path) || Directory.Exists(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (validPaths.Count == 0)
+        {
+            return 0;
+        }
+
+        var existing = _shortcutRepository.GetAllAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var existingPaths = new HashSet<string>(existing.Select(x => x.TargetPath), StringComparer.OrdinalIgnoreCase);
+        var nextOrder = existing.Count == 0 ? 1 : existing.Max(x => x.SortOrder) + 1;
+        var added = 0;
+
+        foreach (var path in validPaths)
+        {
+            if (existingPaths.Contains(path))
+            {
+                continue;
+            }
+
+            var shortcut = new ShortcutItem
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Label = BuildShortcutLabel(path),
+                TargetPath = path,
+                TargetKind = GetShortcutTargetKind(path),
+                SortOrder = nextOrder++
+            };
+
+            _shortcutRepository.UpsertAsync(shortcut, CancellationToken.None).GetAwaiter().GetResult();
+            existingPaths.Add(path);
+            added++;
+        }
+
+        if (added > 0)
+        {
+            RefreshShortcuts();
+        }
+
+        return added;
+    }
+
+    private static string BuildShortcutLabel(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        return string.IsNullOrWhiteSpace(fileName) ? path : fileName;
+    }
+
+    private static ShortcutTargetKind GetShortcutTargetKind(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            return ShortcutTargetKind.Folder;
+        }
+
+        if (!File.Exists(path))
+        {
+            return ShortcutTargetKind.Program;
+        }
+
+        var extension = Path.GetExtension(path);
+        return extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".ps1", StringComparison.OrdinalIgnoreCase)
+            ? ShortcutTargetKind.Program
+            : ShortcutTargetKind.File;
+    }
+
+    private static ImageSource? TryGetShellIcon(string path, ShortcutTargetKind kind)
+    {
+        const uint fileAttributeNormal = 0x80;
+        const uint fileAttributeDirectory = 0x10;
+        const uint shgfiIcon = 0x000000100;
+        const uint shgfiSmallIcon = 0x000000001;
+        const uint shgfiUseFileAttributes = 0x000000010;
+
+        var attributes = kind == ShortcutTargetKind.Folder ? fileAttributeDirectory : fileAttributeNormal;
+        var flags = shgfiIcon | shgfiSmallIcon;
+
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            flags |= shgfiUseFileAttributes;
+        }
+
+        var infoSize = (uint)Marshal.SizeOf<ShFileInfo>();
+        var result = SHGetFileInfo(path, attributes, out var shFileInfo, infoSize, flags);
+        if (result == IntPtr.Zero || shFileInfo.hIcon == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        try
+        {
+            var image = Imaging.CreateBitmapSourceFromHIcon(
+                shFileInfo.hIcon,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+            image.Freeze();
+            return image;
+        }
+        finally
+        {
+            _ = DestroyIcon(shFileInfo.hIcon);
+        }
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHGetFileInfo(
+        string pszPath,
+        uint dwFileAttributes,
+        out ShFileInfo psfi,
+        uint cbFileInfo,
+        uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ShFileInfo
+    {
+        public IntPtr hIcon;
+        public IntPtr iIcon;
+        public uint dwAttributes;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    private sealed class ShortcutListItem
+    {
+        public string Id { get; init; } = string.Empty;
+
+        public string Label { get; init; } = string.Empty;
+
+        public string FullPath { get; init; } = string.Empty;
+
+        public ImageSource? Icon { get; init; }
     }
 
     private string? ResolveSelectedPreviewPath()
