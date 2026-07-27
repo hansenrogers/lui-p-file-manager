@@ -2161,21 +2161,7 @@ public partial class MainWindow : Window
     {
         if (HeaderIndexingTextBlock is not null)
         {
-            HeaderIndexingTextBlock.Text = message;
-        }
-
-        if (HeaderIndexingProgressBar is not null)
-        {
-            if (totalLocations > 0)
-            {
-                HeaderIndexingProgressBar.IsIndeterminate = false;
-                HeaderIndexingProgressBar.Value = Math.Clamp((double)completedLocations / totalLocations * 100d, 0d, 100d);
-            }
-            else
-            {
-                HeaderIndexingProgressBar.IsIndeterminate = isRunning;
-                HeaderIndexingProgressBar.Value = 0;
-            }
+            HeaderIndexingTextBlock.Text = isRunning ? "Indexing..." : "Indexing";
         }
 
         if (HeaderIndexingDot is not null)
@@ -2222,22 +2208,14 @@ public partial class MainWindow : Window
 
             if (latest == default)
             {
-                HeaderLastIndexedTextBlock.Text = _lastIndexDuration is null
-                    ? "Last indexed: not yet"
-                    : $"Last indexed: not yet | Last scan duration: {FormatDuration(_lastIndexDuration.Value)}";
-                HeaderLastIndexedTextBlock.Foreground = _lastIndexDuration is null
-                    ? System.Windows.Media.Brushes.SteelBlue
-                    : GetDurationBrush(_lastIndexDuration.Value);
+                HeaderLastIndexedTextBlock.Text = "Last indexed: not yet";
+                HeaderLastIndexedTextBlock.Foreground = System.Windows.Media.Brushes.SteelBlue;
                 return;
             }
 
             var localTime = latest.ToLocalTime();
-            HeaderLastIndexedTextBlock.Text = _lastIndexDuration is null
-                ? $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}"
-                : $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt} | Last scan duration: {FormatDuration(_lastIndexDuration.Value)}";
-            HeaderLastIndexedTextBlock.Foreground = _lastIndexDuration is null
-                ? System.Windows.Media.Brushes.SteelBlue
-                : GetDurationBrush(_lastIndexDuration.Value);
+            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}";
+            HeaderLastIndexedTextBlock.Foreground = System.Windows.Media.Brushes.SteelBlue;
         }
         catch
         {
