@@ -16,6 +16,14 @@ namespace LuiP.FileManager.App;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private enum ItemSortMode
+    {
+        NameAscending = 0,
+        NameDescending = 1,
+        DateModifiedNewest = 2,
+        DateModifiedOldest = 3
+    }
+
     private readonly IActivityLogRepository _activityLogRepository;
     private readonly IFileOperationService _fileOperationService;
     private readonly IUndoService _undoService;
@@ -39,6 +47,8 @@ public partial class MainWindow : Window
 
     private DateFilterPreset _sourceDateFilter = DateFilterPreset.AllDates;
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
+    private ItemSortMode _sourceSortMode = ItemSortMode.NameAscending;
+    private ItemSortMode _destinationSortMode = ItemSortMode.NameAscending;
     private List<string> _pendingCutPaths = new();
     private bool _verifyLargeFileChecksumByDefault;
     private long _checksumThresholdBytes = 32L * 1024L * 1024L;
@@ -325,11 +335,14 @@ public partial class MainWindow : Window
             var searchResults = _indexService
                 .SearchAsync(LocationKind.Source, selected.Id, query, _sourceDateFilter, 500, CancellationToken.None)
                 .GetAwaiter()
-                .GetResult();
+                .GetResult()
+                .Where(x => MatchesDateFilter(x.ModifiedUtc, _sourceDateFilter));
+
+            var sortedSearchResults = SortSearchResults(searchResults, _sourceSortMode).ToList();
 
             _sourcePathByDisplay.Clear();
             var displayed = new List<string>();
-            foreach (var result in searchResults)
+            foreach (var result in sortedSearchResults)
             {
                 var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath);
                 _sourcePathByDisplay[display] = result.FullPath;
@@ -341,10 +354,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var fsEntries = Directory.EnumerateFileSystemEntries(_currentSourcePath).Take(500).ToList();
+        var fsEntries = Directory.EnumerateFileSystemEntries(_currentSourcePath)
+            .Where(path => MatchesDateFilter(path, _sourceDateFilter));
+        var sortedEntries = SortPathEntries(fsEntries, _sourceSortMode).Take(500).ToList();
         _sourcePathByDisplay.Clear();
-        var items = new List<string>(fsEntries.Count);
-        foreach (var entry in fsEntries)
+        var items = new List<string>(sortedEntries.Count);
+        foreach (var entry in sortedEntries)
         {
             var display = FormatItemDisplay(entry);
             _sourcePathByDisplay[display] = entry;
@@ -390,11 +405,14 @@ public partial class MainWindow : Window
             var searchResults = _indexService
                 .SearchAsync(LocationKind.Destination, selected.Id, query, _destinationDateFilter, 500, CancellationToken.None)
                 .GetAwaiter()
-                .GetResult();
+                .GetResult()
+                .Where(x => MatchesDateFilter(x.ModifiedUtc, _destinationDateFilter));
+
+            var sortedSearchResults = SortSearchResults(searchResults, _destinationSortMode).ToList();
 
             _destinationPathByDisplay.Clear();
             var displayed = new List<string>();
-            foreach (var result in searchResults)
+            foreach (var result in sortedSearchResults)
             {
                 var display = FormatSearchDisplay(result.IsFolder, result.Name, result.FullPath);
                 _destinationPathByDisplay[display] = result.FullPath;
@@ -406,10 +424,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var fsEntries = Directory.EnumerateFileSystemEntries(_currentDestinationPath).Take(500).ToList();
+        var fsEntries = Directory.EnumerateFileSystemEntries(_currentDestinationPath)
+            .Where(path => MatchesDateFilter(path, _destinationDateFilter));
+        var sortedEntries = SortPathEntries(fsEntries, _destinationSortMode).Take(500).ToList();
         _destinationPathByDisplay.Clear();
-        var items = new List<string>(fsEntries.Count);
-        foreach (var entry in fsEntries)
+        var items = new List<string>(sortedEntries.Count);
+        foreach (var entry in sortedEntries)
         {
             var display = FormatItemDisplay(entry);
             _destinationPathByDisplay[display] = entry;
@@ -522,6 +542,28 @@ public partial class MainWindow : Window
         RefreshDestinationItems();
     }
 
+    private void SourceSortComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _sourceSortMode = ParseSortMode(SourceSortComboBox.SelectedIndex);
+        RefreshSourceItems();
+    }
+
+    private void DestinationSortComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        _destinationSortMode = ParseSortMode(DestinationSortComboBox.SelectedIndex);
+        RefreshDestinationItems();
+    }
+
     private static DateFilterPreset ParseDateFilterPreset(int selectedIndex)
     {
         return selectedIndex switch
@@ -532,6 +574,100 @@ public partial class MainWindow : Window
             4 => DateFilterPreset.ThisYear,
             _ => DateFilterPreset.AllDates
         };
+    }
+
+    private static ItemSortMode ParseSortMode(int selectedIndex)
+    {
+        return selectedIndex switch
+        {
+            1 => ItemSortMode.NameDescending,
+            2 => ItemSortMode.DateModifiedNewest,
+            3 => ItemSortMode.DateModifiedOldest,
+            _ => ItemSortMode.NameAscending
+        };
+    }
+
+    private static IEnumerable<IndexedSearchResult> SortSearchResults(IEnumerable<IndexedSearchResult> results, ItemSortMode sortMode)
+    {
+        return sortMode switch
+        {
+            ItemSortMode.NameDescending => results.OrderByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            ItemSortMode.DateModifiedNewest => results
+                .OrderByDescending(x => x.ModifiedUtc ?? DateTimeOffset.MinValue)
+                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            ItemSortMode.DateModifiedOldest => results
+                .OrderBy(x => x.ModifiedUtc ?? DateTimeOffset.MaxValue)
+                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            _ => results.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static IEnumerable<string> SortPathEntries(IEnumerable<string> paths, ItemSortMode sortMode)
+    {
+        return sortMode switch
+        {
+            ItemSortMode.NameDescending => paths.OrderByDescending(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
+            ItemSortMode.DateModifiedNewest => paths
+                .OrderByDescending(path => TryGetLastWriteUtc(path) ?? DateTimeOffset.MinValue)
+                .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
+            ItemSortMode.DateModifiedOldest => paths
+                .OrderBy(path => TryGetLastWriteUtc(path) ?? DateTimeOffset.MaxValue)
+                .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
+            _ => paths.OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static bool MatchesDateFilter(string path, DateFilterPreset preset)
+    {
+        return MatchesDateFilter(TryGetLastWriteUtc(path), preset);
+    }
+
+    private static bool MatchesDateFilter(DateTimeOffset? modifiedUtc, DateFilterPreset preset)
+    {
+        if (preset == DateFilterPreset.AllDates)
+        {
+            return true;
+        }
+
+        if (!modifiedUtc.HasValue)
+        {
+            return false;
+        }
+
+        var modifiedLocal = modifiedUtc.Value.ToLocalTime().Date;
+        var nowLocal = DateTimeOffset.Now;
+        var today = nowLocal.Date;
+
+        return preset switch
+        {
+            DateFilterPreset.Today => modifiedLocal == today,
+            DateFilterPreset.Last7Days => modifiedLocal >= today.AddDays(-6),
+            DateFilterPreset.Last30Days => modifiedLocal >= today.AddDays(-29),
+            DateFilterPreset.ThisYear => modifiedLocal.Year == nowLocal.Year,
+            _ => true
+        };
+    }
+
+    private static DateTimeOffset? TryGetLastWriteUtc(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                return File.GetLastWriteTimeUtc(path);
+            }
+
+            if (Directory.Exists(path))
+            {
+                return Directory.GetLastWriteTimeUtc(path);
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void SourceLocationListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
