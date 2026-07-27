@@ -503,7 +503,7 @@ public partial class MainWindow : Window
             return "Unknown";
         }
 
-        return modifiedUtc.Value.ToLocalTime().ToString("yyyy-MM-dd h:mm tt");
+        return modifiedUtc.Value.ToLocalTime().ToString("MM-dd-yyyy h:mm tt");
     }
 
     private void SourceSearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -2301,7 +2301,7 @@ public partial class MainWindow : Window
             }
 
             var localTime = latest.ToLocalTime();
-            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:yyyy-MM-dd h:mm:ss tt}";
+            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:MM-dd-yyyy h:mm:ss tt}";
             HeaderLastIndexedTextBlock.Foreground = System.Windows.Media.Brushes.SteelBlue;
         }
         catch
