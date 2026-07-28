@@ -131,8 +131,6 @@
                     <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
                     <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
                     <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
-                    <Button x:Name="ToggleSourceLocationsColumnButton" Content="Hide Source Locations" Padding="14,8" Margin="0,0,8,0" MinWidth="170" Click="ToggleSourceLocationsColumnButton_OnClick" />
-                    <Button x:Name="ToggleDestinationLocationsColumnButton" Content="Hide Destination Locations" Padding="14,8" Margin="0,0,8,0" MinWidth="190" Click="ToggleDestinationLocationsColumnButton_OnClick" />
                     <Button x:Name="ResetLayoutButton" Content="Reset Layout" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ResetLayoutButton_OnClick" />
                 </StackPanel>
 
@@ -278,7 +276,19 @@
                 </Grid>
             </GroupBox>
 
-            <GridSplitter x:Name="SourceLocationsGridSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+            <Grid Grid.Column="1" Margin="0">
+                <GridSplitter x:Name="SourceLocationsGridSplitter" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+                <Button x:Name="SourceLocationsCollapseButton"
+                        Width="16"
+                        Height="24"
+                        Padding="0"
+                        FontSize="11"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Margin="0,12,0,0"
+                        Click="ToggleSourceLocationsColumnButton_OnClick"
+                        ToolTip="Collapse source locations" />
+            </Grid>
 
             <GroupBox Header="Source Items" Padding="8" Grid.Column="2">
                 <Grid>
@@ -414,7 +424,19 @@
                 </Grid>
             </GroupBox>
 
-            <GridSplitter x:Name="DestinationLocationsGridSplitter" Grid.Column="5" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+            <Grid Grid.Column="5" Margin="0">
+                <GridSplitter x:Name="DestinationLocationsGridSplitter" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+                <Button x:Name="DestinationLocationsCollapseButton"
+                        Width="16"
+                        Height="24"
+                        Padding="0"
+                        FontSize="11"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Margin="0,12,0,0"
+                        Click="ToggleDestinationLocationsColumnButton_OnClick"
+                        ToolTip="Collapse destination locations" />
+            </Grid>
 
             <GroupBox x:Name="DestinationLocationsGroupBox" Header="Destination Locations" Padding="8" Grid.Column="6">
                 <Grid>

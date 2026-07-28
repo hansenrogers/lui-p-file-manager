@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private ItemSortMode _destinationSortMode = ItemSortMode.NameAscending;
     private static readonly GridLength SourceLocationsExpandedWidth = new(2, GridUnitType.Star);
     private static readonly GridLength DestinationLocationsExpandedWidth = new(2, GridUnitType.Star);
+    private static readonly GridLength LocationToggleColumnWidth = new(16);
     private const double DefaultNameColumnWidth = 260;
     private const double DefaultModifiedColumnWidth = 170;
     private List<string> _pendingCutPaths = new();
@@ -1877,7 +1878,7 @@ public partial class MainWindow : Window
 
         if (SourceLocationSplitterColumn is not null)
         {
-            SourceLocationSplitterColumn.Width = _isSourceLocationsColumnCollapsed ? new GridLength(0) : new GridLength(5);
+            SourceLocationSplitterColumn.Width = LocationToggleColumnWidth;
         }
 
         if (SourceLocationsGroupBox is not null)
@@ -1890,9 +1891,10 @@ public partial class MainWindow : Window
             SourceLocationsGridSplitter.Visibility = _isSourceLocationsColumnCollapsed ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        if (ToggleSourceLocationsColumnButton is not null)
+        if (SourceLocationsCollapseButton is not null)
         {
-            ToggleSourceLocationsColumnButton.Content = _isSourceLocationsColumnCollapsed ? "Show Source Locations" : "Hide Source Locations";
+            SourceLocationsCollapseButton.Content = _isSourceLocationsColumnCollapsed ? ">" : "<";
+            SourceLocationsCollapseButton.ToolTip = _isSourceLocationsColumnCollapsed ? "Expand source locations" : "Collapse source locations";
         }
 
         if (DestinationLocationsColumn is not null)
@@ -1903,7 +1905,7 @@ public partial class MainWindow : Window
 
         if (DestinationLocationSplitterColumn is not null)
         {
-            DestinationLocationSplitterColumn.Width = _isDestinationLocationsColumnCollapsed ? new GridLength(0) : new GridLength(5);
+            DestinationLocationSplitterColumn.Width = LocationToggleColumnWidth;
         }
 
         if (DestinationLocationsGroupBox is not null)
@@ -1916,9 +1918,10 @@ public partial class MainWindow : Window
             DestinationLocationsGridSplitter.Visibility = _isDestinationLocationsColumnCollapsed ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        if (ToggleDestinationLocationsColumnButton is not null)
+        if (DestinationLocationsCollapseButton is not null)
         {
-            ToggleDestinationLocationsColumnButton.Content = _isDestinationLocationsColumnCollapsed ? "Show Destination Locations" : "Hide Destination Locations";
+            DestinationLocationsCollapseButton.Content = _isDestinationLocationsColumnCollapsed ? "<" : ">";
+            DestinationLocationsCollapseButton.ToolTip = _isDestinationLocationsColumnCollapsed ? "Expand destination locations" : "Collapse destination locations";
         }
     }
 
