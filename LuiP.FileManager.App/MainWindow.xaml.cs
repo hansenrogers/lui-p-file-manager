@@ -22,6 +22,13 @@ namespace LuiP.FileManager.App;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private sealed class LocationListItem
+    {
+        public required string Id { get; init; }
+        public required string DisplayName { get; init; }
+        public required string FullPath { get; init; }
+    }
+
     private enum ItemSortMode
     {
         NameAscending = 0,
@@ -52,8 +59,8 @@ public partial class MainWindow : Window
 
     private readonly List<ConfiguredLocation> _sourceLocations = new();
     private readonly List<ConfiguredLocation> _destinationLocations = new();
-    private readonly Dictionary<string, ConfiguredLocation> _sourceLocationByDisplay = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ConfiguredLocation> _destinationLocationByDisplay = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ConfiguredLocation> _sourceLocationById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ConfiguredLocation> _destinationLocationById = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _sourcePathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _destinationPathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ShortcutItem> _shortcutById = new(StringComparer.Ordinal);
@@ -236,30 +243,38 @@ public partial class MainWindow : Window
 
         _sourceLocations.Clear();
         _sourceLocations.AddRange(sources.Where(x => x.IsEnabled).OrderBy(x => x.SortOrder));
-        _sourceLocationByDisplay.Clear();
+        _sourceLocationById.Clear();
 
         _destinationLocations.Clear();
         _destinationLocations.AddRange(destinations.Where(x => x.IsEnabled).OrderBy(x => x.SortOrder));
-        _destinationLocationByDisplay.Clear();
+        _destinationLocationById.Clear();
 
-        var sourceDisplays = new List<string>(_sourceLocations.Count);
+        var sourceItems = new List<LocationListItem>(_sourceLocations.Count);
         foreach (var source in _sourceLocations)
         {
-            var display = ToLocationDisplay(source);
-            _sourceLocationByDisplay[display] = source;
-            sourceDisplays.Add(display);
+            _sourceLocationById[source.Id] = source;
+            sourceItems.Add(new LocationListItem
+            {
+                Id = source.Id,
+                DisplayName = source.Name,
+                FullPath = source.Path
+            });
         }
 
-        var destinationDisplays = new List<string>(_destinationLocations.Count);
+        var destinationItems = new List<LocationListItem>(_destinationLocations.Count);
         foreach (var destination in _destinationLocations)
         {
-            var display = ToLocationDisplay(destination);
-            _destinationLocationByDisplay[display] = destination;
-            destinationDisplays.Add(display);
+            _destinationLocationById[destination.Id] = destination;
+            destinationItems.Add(new LocationListItem
+            {
+                Id = destination.Id,
+                DisplayName = destination.Name,
+                FullPath = destination.Path
+            });
         }
 
-        SourceLocationListView.ItemsSource = sourceDisplays;
-        DestinationLocationListView.ItemsSource = destinationDisplays;
+        SourceLocationListView.ItemsSource = sourceItems;
+        DestinationLocationListView.ItemsSource = destinationItems;
 
         if (SourceLocationListView.Items.Count > 0)
         {
@@ -339,10 +354,6 @@ public partial class MainWindow : Window
             {
                 SourceCurrentPathTextBlock.Text = string.Empty;
             }
-            if (SourceUpButton is not null)
-            {
-                SourceUpButton.IsEnabled = false;
-            }
             return;
         }
 
@@ -401,10 +412,6 @@ public partial class MainWindow : Window
             {
                 DestinationCurrentPathTextBlock.Text = string.Empty;
             }
-            if (DestinationUpButton is not null)
-            {
-                DestinationUpButton.IsEnabled = false;
-            }
             return;
         }
 
@@ -450,12 +457,12 @@ public partial class MainWindow : Window
 
     private ConfiguredLocation? GetSelectedSourceLocation()
     {
-        return GetSelectedLocation(SourceLocationListView, _sourceLocationByDisplay);
+        return GetSelectedLocation(SourceLocationListView, _sourceLocationById);
     }
 
     private ConfiguredLocation? GetSelectedDestinationLocation()
     {
-        return GetSelectedLocation(DestinationLocationListView, _destinationLocationByDisplay);
+        return GetSelectedLocation(DestinationLocationListView, _destinationLocationById);
     }
 
     private static ConfiguredLocation? GetSelectedLocation(System.Windows.Controls.ListView listView, IReadOnlyDictionary<string, ConfiguredLocation> map)
@@ -465,17 +472,12 @@ public partial class MainWindow : Window
             return null;
         }
 
-        if (listView.SelectedItem is not string selectedLine)
+        if (listView.SelectedItem is not LocationListItem selected)
         {
             return null;
         }
 
-        return map.TryGetValue(selectedLine, out var configured) ? configured : null;
-    }
-
-    private static string ToLocationDisplay(ConfiguredLocation location)
-    {
-        return $"{location.Name}   {location.Path}";
+        return map.TryGetValue(selected.Id, out var configured) ? configured : null;
     }
 
     private static FileItemRow CreateItemRow(string fullPath)
@@ -756,7 +758,8 @@ public partial class MainWindow : Window
         {
             SelectedSourceRootTextBlock.Text = selected is null
                 ? "Selected: none"
-                : $"Selected: {selected.Name} ({selected.Path})";
+                : $"Selected: {selected.Name}";
+            SelectedSourceRootTextBlock.ToolTip = selected?.Path;
         }
         RefreshSourceItems();
         UpdateTransferContextBar();
@@ -775,7 +778,8 @@ public partial class MainWindow : Window
         {
             SelectedDestinationRootTextBlock.Text = selected is null
                 ? "Selected: none"
-                : $"Selected: {selected.Name} ({selected.Path})";
+                : $"Selected: {selected.Name}";
+            SelectedDestinationRootTextBlock.ToolTip = selected?.Path;
         }
         RefreshDestinationItems();
         UpdateTransferContextBar();
@@ -891,20 +895,24 @@ public partial class MainWindow : Window
     {
         if (kind == LocationKind.Source)
         {
-            var match = _sourceLocationByDisplay.FirstOrDefault(pair => PathsEqual(pair.Value.Path, path));
-            if (!string.IsNullOrWhiteSpace(match.Key))
+            var match = _sourceLocationById.Values.FirstOrDefault(location => PathsEqual(location.Path, path));
+            if (match is not null)
             {
-                SourceLocationListView.SelectedItem = match.Key;
+                SourceLocationListView.SelectedItem = SourceLocationListView.Items
+                    .OfType<LocationListItem>()
+                    .FirstOrDefault(item => string.Equals(item.Id, match.Id, StringComparison.Ordinal));
                 return true;
             }
 
             return false;
         }
 
-        var destinationMatch = _destinationLocationByDisplay.FirstOrDefault(pair => PathsEqual(pair.Value.Path, path));
-        if (!string.IsNullOrWhiteSpace(destinationMatch.Key))
+        var destinationMatch = _destinationLocationById.Values.FirstOrDefault(location => PathsEqual(location.Path, path));
+        if (destinationMatch is not null)
         {
-            DestinationLocationListView.SelectedItem = destinationMatch.Key;
+            DestinationLocationListView.SelectedItem = DestinationLocationListView.Items
+                .OfType<LocationListItem>()
+                .FirstOrDefault(item => string.Equals(item.Id, destinationMatch.Id, StringComparison.Ordinal));
             return true;
         }
 
@@ -1730,22 +1738,22 @@ public partial class MainWindow : Window
         }
 
         var folderName = prompt.Result.Trim();
-        var targetPath = Path.Combine(GetCurrentDestinationPath(destination), folderName);
-
-        var request = new FileOperationRequest
+        if (folderName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
-            OperationType = FileOperationType.CreateFolder,
-            SourcePaths = new[] { targetPath },
-            DestinationPath = null,
-            ApplyToAllConflicts = false
-        };
+            MessageBox.Show(this, "Folder name contains invalid characters.", "Create Folder", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var targetPath = Path.Combine(GetCurrentDestinationPath(destination), folderName);
 
         try
         {
-            await _fileOperationService.ExecuteAsync(request, progress: null, CancellationToken.None).ConfigureAwait(true);
-            StatusTextBlock.Text = $"Folder created: {folderName}";
+            Directory.CreateDirectory(targetPath);
+            DestinationSearchTextBox.Text = string.Empty;
             RefreshDestinationItems();
+            SelectDestinationItemByPath(targetPath);
             _ = EnsureIndexBuiltAsync();
+            StatusTextBlock.Text = $"Folder ready: {targetPath}";
         }
         catch (Exception ex)
         {
@@ -1753,46 +1761,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SourceUpButton_OnClick(object sender, RoutedEventArgs e)
+    private void SelectDestinationItemByPath(string fullPath)
     {
-        var selected = GetSelectedSourceLocation();
-        if (selected is null || string.IsNullOrWhiteSpace(_currentSourcePath))
+        if (DestinationItemListView.ItemsSource is not IEnumerable<FileItemRow> rows)
         {
             return;
         }
 
-        var parent = Directory.GetParent(_currentSourcePath)?.FullName;
-        if (string.IsNullOrWhiteSpace(parent) || !IsPathWithinRoot(parent, selected.Path))
-        {
-            _currentSourcePath = selected.Path;
-        }
-        else
-        {
-            _currentSourcePath = parent;
-        }
-
-        RefreshSourceItems();
-    }
-
-    private void DestinationUpButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        var selected = GetSelectedDestinationLocation();
-        if (selected is null || string.IsNullOrWhiteSpace(_currentDestinationPath))
+        var selected = rows.FirstOrDefault(x => PathsEqual(x.FullPath, fullPath));
+        if (selected is null)
         {
             return;
         }
 
-        var parent = Directory.GetParent(_currentDestinationPath)?.FullName;
-        if (string.IsNullOrWhiteSpace(parent) || !IsPathWithinRoot(parent, selected.Path))
-        {
-            _currentDestinationPath = selected.Path;
-        }
-        else
-        {
-            _currentDestinationPath = parent;
-        }
-
-        RefreshDestinationItems();
+        DestinationItemListView.SelectedItem = selected;
+        DestinationItemListView.ScrollIntoView(selected);
     }
 
     private void UpdateSourceNavigationUi(string rootPath, string? currentPath)
@@ -1801,12 +1784,6 @@ public partial class MainWindow : Window
         {
             SourceCurrentPathTextBlock.Text = currentPath ?? rootPath;
         }
-
-        if (SourceUpButton is not null)
-        {
-            SourceUpButton.IsEnabled = !string.IsNullOrWhiteSpace(currentPath)
-                && !PathsEqual(currentPath, rootPath);
-        }
     }
 
     private void UpdateDestinationNavigationUi(string rootPath, string? currentPath)
@@ -1814,12 +1791,6 @@ public partial class MainWindow : Window
         if (DestinationCurrentPathTextBlock is not null)
         {
             DestinationCurrentPathTextBlock.Text = currentPath ?? rootPath;
-        }
-
-        if (DestinationUpButton is not null)
-        {
-            DestinationUpButton.IsEnabled = !string.IsNullOrWhiteSpace(currentPath)
-                && !PathsEqual(currentPath, rootPath);
         }
     }
 
@@ -2856,7 +2827,9 @@ public partial class MainWindow : Window
             "- Enable large-file checksum verification in Settings\n\n" +
             "4) Search and filters\n" +
             "- Use search/date filters in Columns B and D\n" +
-            "- Rebuild Index refreshes indexed search data\n\n" +
+            "- Rebuild Index refreshes indexed search data\n" +
+            "- Click Name/Modified headers to sort items\n" +
+            "- Right-click item headers to show/hide columns\n\n" +
             "5) Preview and properties\n" +
             "- Preview Selected opens a safe preview window\n" +
             "- Properties button (or Alt+Enter) shows item details\n\n" +
