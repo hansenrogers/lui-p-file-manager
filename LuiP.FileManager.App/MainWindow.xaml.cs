@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System.ComponentModel;
+using System.Drawing;
 using System.Windows.Input;
 using System.Windows;
 using System.Windows.Threading;
@@ -14,6 +16,7 @@ using LuiP.FileManager.Core.Models;
 using LuiP.FileManager.Core.Services;
 using LuiP.FileManager.App.Persistence;
 using LuiP.FileManager.Infrastructure.Services;
+using WinForms = System.Windows.Forms;
 
 namespace LuiP.FileManager.App;
 
@@ -34,7 +37,9 @@ public partial class MainWindow : Window
         NameAscending = 0,
         NameDescending = 1,
         DateModifiedNewest = 2,
-        DateModifiedOldest = 3
+        DateModifiedOldest = 3,
+        TypeAscending = 4,
+        TypeDescending = 5
     }
 
     private const uint ShgfiIcon = 0x000000100;
@@ -68,6 +73,10 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, ItemSortMode> _destinationSortModeByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateFilterPreset> _sourceDateFilterByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateFilterPreset> _destinationDateFilterByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Stack<string>> _sourceBackHistoryByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Stack<string>> _sourceForwardHistoryByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Stack<string>> _destinationBackHistoryByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Stack<string>> _destinationForwardHistoryByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _sourcePathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _destinationPathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ShortcutItem> _shortcutById = new(StringComparer.Ordinal);
@@ -87,6 +96,8 @@ public partial class MainWindow : Window
     private const double DefaultModifiedColumnWidth = 170;
     private List<string> _pendingCutPaths = new();
     private bool _verifyLargeFileChecksumByDefault;
+    private bool _confirmBeforeMoveToDestination = true;
+    private bool _syncBoardAutoSyncEnabled = true;
     private long _checksumThresholdBytes = 32L * 1024L * 1024L;
     private string? _currentSourcePath;
     private string? _currentDestinationPath;
@@ -103,6 +114,10 @@ public partial class MainWindow : Window
     private TimeSpan? _lastIndexDuration;
     private UiState? _loadedUiState;
     private PreviewWindow? _previewWindow;
+    private SyncBoardWindow? _syncBoardWindow;
+    private WinForms.NotifyIcon? _trayIcon;
+    private bool _allowWindowClose;
+    private bool _trayHintShown;
 
     public MainWindow()
     {
@@ -127,8 +142,100 @@ public partial class MainWindow : Window
         SizeChanged += MainWindow_OnUiChanged;
         LocationChanged += MainWindow_OnUiChanged;
         StateChanged += MainWindow_OnUiChanged;
+        Closing += MainWindow_OnClosing;
         Closed += MainWindow_OnClosed;
         Loaded += MainWindow_OnLoaded;
+
+        InitializeTrayIcon();
+    }
+
+    private void InitializeTrayIcon()
+    {
+        _trayIcon = new WinForms.NotifyIcon
+        {
+            Text = "Lui-P File Manager",
+            Visible = true
+        };
+
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(exePath) && File.Exists(exePath))
+            {
+                _trayIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+            }
+        }
+        catch
+        {
+            // Best effort icon assignment.
+        }
+
+        var trayMenu = new WinForms.ContextMenuStrip();
+        var openItem = new WinForms.ToolStripMenuItem("Open Lui-P File Manager");
+        openItem.Click += (_, _) => ShowMainWindowFromTray();
+
+        var exitItem = new WinForms.ToolStripMenuItem("Exit Program");
+        exitItem.Click += (_, _) => ExitProgram();
+
+        trayMenu.Items.Add(openItem);
+        trayMenu.Items.Add(new WinForms.ToolStripSeparator());
+        trayMenu.Items.Add(exitItem);
+
+        _trayIcon.ContextMenuStrip = trayMenu;
+        _trayIcon.DoubleClick += (_, _) => ShowMainWindowFromTray();
+    }
+
+    private void MainWindow_OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_allowWindowClose)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        Hide();
+        ShowInTaskbar = false;
+
+        if (_trayIcon is not null && !_trayHintShown)
+        {
+            _trayHintShown = true;
+            _trayIcon.ShowBalloonTip(
+                2500,
+                "Lui-P File Manager",
+                "App is still running in the system tray. Use File -> Exit Program to fully close.",
+                WinForms.ToolTipIcon.Info);
+        }
+    }
+
+    private void ShowMainWindowFromTray()
+    {
+        Show();
+        ShowInTaskbar = true;
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
+    }
+
+    public void RestoreFromExternalActivation()
+    {
+        ShowMainWindowFromTray();
+    }
+
+    private void ExitProgram()
+    {
+        _allowWindowClose = true;
+        if (_trayIcon is not null)
+        {
+            _trayIcon.Visible = false;
+        }
+
+        Close();
     }
 
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
@@ -219,6 +326,13 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnClosed(object? sender, EventArgs e)
     {
+        if (_trayIcon is not null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            _trayIcon = null;
+        }
+
         if (_previewWindow is not null)
         {
             _previewWindow.Close();
@@ -352,6 +466,8 @@ public partial class MainWindow : Window
     {
         var preferences = _preferencesStore.Load();
         _verifyLargeFileChecksumByDefault = preferences.VerifyLargeFileChecksumByDefault;
+        _confirmBeforeMoveToDestination = preferences.ConfirmBeforeMoveToDestination;
+        _syncBoardAutoSyncEnabled = preferences.SyncBoardAutoSyncEnabled;
         _checksumThresholdBytes = preferences.ChecksumThresholdBytes > 0
             ? preferences.ChecksumThresholdBytes
             : 32L * 1024L * 1024L;
@@ -359,8 +475,6 @@ public partial class MainWindow : Window
 
     private void InitializeLocationsFromRepository()
     {
-        EnsureDefaultLocationsIfNeeded();
-
         var sources = _locationRepository.GetByKindAsync(LocationKind.Source, CancellationToken.None).GetAwaiter().GetResult();
         var destinations = _locationRepository.GetByKindAsync(LocationKind.Destination, CancellationToken.None).GetAwaiter().GetResult();
 
@@ -413,6 +527,8 @@ public partial class MainWindow : Window
         {
             DestinationLocationListView.SelectedIndex = 0;
         }
+
+        UpdateNavigationButtons();
     }
 
     private void PruneStaleLocationViewState()
@@ -423,10 +539,14 @@ public partial class MainWindow : Window
         RemoveStaleKeys(_sourceCurrentPathByLocationId, sourceIds);
         RemoveStaleKeys(_sourceSortModeByLocationId, sourceIds);
         RemoveStaleKeys(_sourceDateFilterByLocationId, sourceIds);
+        RemoveStaleHistory(_sourceBackHistoryByLocationId, sourceIds);
+        RemoveStaleHistory(_sourceForwardHistoryByLocationId, sourceIds);
 
         RemoveStaleKeys(_destinationCurrentPathByLocationId, destinationIds);
         RemoveStaleKeys(_destinationSortModeByLocationId, destinationIds);
         RemoveStaleKeys(_destinationDateFilterByLocationId, destinationIds);
+        RemoveStaleHistory(_destinationBackHistoryByLocationId, destinationIds);
+        RemoveStaleHistory(_destinationForwardHistoryByLocationId, destinationIds);
     }
 
     private static void RemoveStaleKeys<T>(Dictionary<string, T> map, IReadOnlySet<string> validIds)
@@ -436,6 +556,52 @@ public partial class MainWindow : Window
         {
             map.Remove(id);
         }
+    }
+
+    private static void RemoveStaleHistory(Dictionary<string, Stack<string>> map, IReadOnlySet<string> validIds)
+    {
+        var stale = map.Keys.Where(id => !validIds.Contains(id)).ToList();
+        foreach (var id in stale)
+        {
+            map.Remove(id);
+        }
+    }
+
+    private void UpdateNavigationButtons()
+    {
+        var sourceBackCount = GetHistoryCount(_sourceBackHistoryByLocationId, _activeSourceLocationId);
+        var sourceForwardCount = GetHistoryCount(_sourceForwardHistoryByLocationId, _activeSourceLocationId);
+        if (SourceBackButton is not null)
+        {
+            SourceBackButton.IsEnabled = sourceBackCount > 0;
+        }
+
+        if (SourceForwardButton is not null)
+        {
+            SourceForwardButton.IsEnabled = sourceForwardCount > 0;
+        }
+
+        var destinationBackCount = GetHistoryCount(_destinationBackHistoryByLocationId, _activeDestinationLocationId);
+        var destinationForwardCount = GetHistoryCount(_destinationForwardHistoryByLocationId, _activeDestinationLocationId);
+        if (DestinationBackButton is not null)
+        {
+            DestinationBackButton.IsEnabled = destinationBackCount > 0;
+        }
+
+        if (DestinationForwardButton is not null)
+        {
+            DestinationForwardButton.IsEnabled = destinationForwardCount > 0;
+        }
+    }
+
+    private static int GetHistoryCount(IReadOnlyDictionary<string, Stack<string>> map, string? locationId)
+    {
+        if (string.IsNullOrWhiteSpace(locationId))
+        {
+            return 0;
+        }
+
+        return map.TryGetValue(locationId, out var stack) ? stack.Count : 0;
     }
 
     private static bool SelectLocationById(System.Windows.Controls.ListView listView, string? locationId)
@@ -456,52 +622,6 @@ public partial class MainWindow : Window
 
         listView.SelectedItem = row;
         return true;
-    }
-
-    private void EnsureDefaultLocationsIfNeeded()
-    {
-        var existingSources = _locationRepository.GetByKindAsync(LocationKind.Source, CancellationToken.None).GetAwaiter().GetResult();
-        var existingDestinations = _locationRepository.GetByKindAsync(LocationKind.Destination, CancellationToken.None).GetAwaiter().GetResult();
-
-        if (existingSources.Count > 0 && existingDestinations.Count > 0)
-        {
-            return;
-        }
-
-        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var downloads = Path.Combine(profile, "Downloads");
-
-        if (existingSources.Count == 0)
-        {
-            var defaultSources = new[]
-            {
-                new ConfiguredLocation { Id = Guid.NewGuid().ToString("N"), Name = "Desktop", Path = desktop, Kind = LocationKind.Source, SortOrder = 1 },
-                new ConfiguredLocation { Id = Guid.NewGuid().ToString("N"), Name = "Documents", Path = documents, Kind = LocationKind.Source, SortOrder = 2 },
-                new ConfiguredLocation { Id = Guid.NewGuid().ToString("N"), Name = "Downloads", Path = downloads, Kind = LocationKind.Source, SortOrder = 3 }
-            };
-
-            foreach (var source in defaultSources)
-            {
-                _locationRepository.UpsertAsync(source, CancellationToken.None).GetAwaiter().GetResult();
-            }
-        }
-
-        if (existingDestinations.Count == 0)
-        {
-            var defaultDestinations = new[]
-            {
-                new ConfiguredLocation { Id = Guid.NewGuid().ToString("N"), Name = "Documents", Path = documents, Kind = LocationKind.Destination, SortOrder = 1 },
-                new ConfiguredLocation { Id = Guid.NewGuid().ToString("N"), Name = "Desktop", Path = desktop, Kind = LocationKind.Destination, SortOrder = 2 },
-                new ConfiguredLocation { Id = Guid.NewGuid().ToString("N"), Name = "Downloads", Path = downloads, Kind = LocationKind.Destination, SortOrder = 3 }
-            };
-
-            foreach (var destination in defaultDestinations)
-            {
-                _locationRepository.UpsertAsync(destination, CancellationToken.None).GetAwaiter().GetResult();
-            }
-        }
     }
 
     private void RefreshAllViews()
@@ -702,7 +822,7 @@ public partial class MainWindow : Window
             return "Unknown";
         }
 
-        return modifiedUtc.Value.ToLocalTime().ToString("MM-dd-yyyy h:mm tt");
+        return modifiedUtc.Value.ToLocalTime().ToString("M-d-yyyy h:mm tt");
     }
 
     private void SourceSearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -733,6 +853,188 @@ public partial class MainWindow : Window
     private void DestinationItemListView_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         UpdateTransferContextBar();
+    }
+
+    private void NavigateSourceToPath(string targetPath, bool clearForwardHistory, bool pushCurrentToBack)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath) || !Directory.Exists(targetPath) || string.IsNullOrWhiteSpace(_activeSourceLocationId))
+        {
+            return;
+        }
+
+        var locationId = _activeSourceLocationId;
+        if (pushCurrentToBack && !string.IsNullOrWhiteSpace(_currentSourcePath) && !PathsEqual(_currentSourcePath, targetPath))
+        {
+            if (!_sourceBackHistoryByLocationId.TryGetValue(locationId, out var backStack))
+            {
+                backStack = new Stack<string>();
+                _sourceBackHistoryByLocationId[locationId] = backStack;
+            }
+
+            backStack.Push(_currentSourcePath);
+        }
+
+        if (clearForwardHistory)
+        {
+            _sourceForwardHistoryByLocationId.Remove(locationId);
+        }
+
+        _currentSourcePath = targetPath;
+        _sourceCurrentPathByLocationId[locationId] = targetPath;
+        SourceSearchTextBox.Text = string.Empty;
+        RefreshSourceItems();
+        UpdateNavigationButtons();
+    }
+
+    private void NavigateDestinationToPath(string targetPath, bool clearForwardHistory, bool pushCurrentToBack)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath) || !Directory.Exists(targetPath) || string.IsNullOrWhiteSpace(_activeDestinationLocationId))
+        {
+            return;
+        }
+
+        var locationId = _activeDestinationLocationId;
+        if (pushCurrentToBack && !string.IsNullOrWhiteSpace(_currentDestinationPath) && !PathsEqual(_currentDestinationPath, targetPath))
+        {
+            if (!_destinationBackHistoryByLocationId.TryGetValue(locationId, out var backStack))
+            {
+                backStack = new Stack<string>();
+                _destinationBackHistoryByLocationId[locationId] = backStack;
+            }
+
+            backStack.Push(_currentDestinationPath);
+        }
+
+        if (clearForwardHistory)
+        {
+            _destinationForwardHistoryByLocationId.Remove(locationId);
+        }
+
+        _currentDestinationPath = targetPath;
+        _destinationCurrentPathByLocationId[locationId] = targetPath;
+        DestinationSearchTextBox.Text = string.Empty;
+        RefreshDestinationItems();
+        UpdateNavigationButtons();
+    }
+
+    private void SourceBackButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_activeSourceLocationId)
+            || !_sourceBackHistoryByLocationId.TryGetValue(_activeSourceLocationId, out var backStack)
+            || backStack.Count == 0)
+        {
+            return;
+        }
+
+        var target = backStack.Pop();
+        if (!Directory.Exists(target))
+        {
+            UpdateNavigationButtons();
+            return;
+        }
+
+        if (!_sourceForwardHistoryByLocationId.TryGetValue(_activeSourceLocationId, out var forwardStack))
+        {
+            forwardStack = new Stack<string>();
+            _sourceForwardHistoryByLocationId[_activeSourceLocationId] = forwardStack;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentSourcePath) && Directory.Exists(_currentSourcePath))
+        {
+            forwardStack.Push(_currentSourcePath);
+        }
+
+        NavigateSourceToPath(target, clearForwardHistory: false, pushCurrentToBack: false);
+    }
+
+    private void SourceForwardButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_activeSourceLocationId)
+            || !_sourceForwardHistoryByLocationId.TryGetValue(_activeSourceLocationId, out var forwardStack)
+            || forwardStack.Count == 0)
+        {
+            return;
+        }
+
+        var target = forwardStack.Pop();
+        if (!Directory.Exists(target))
+        {
+            UpdateNavigationButtons();
+            return;
+        }
+
+        if (!_sourceBackHistoryByLocationId.TryGetValue(_activeSourceLocationId, out var backStack))
+        {
+            backStack = new Stack<string>();
+            _sourceBackHistoryByLocationId[_activeSourceLocationId] = backStack;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentSourcePath) && Directory.Exists(_currentSourcePath))
+        {
+            backStack.Push(_currentSourcePath);
+        }
+
+        NavigateSourceToPath(target, clearForwardHistory: false, pushCurrentToBack: false);
+    }
+
+    private void DestinationBackButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_activeDestinationLocationId)
+            || !_destinationBackHistoryByLocationId.TryGetValue(_activeDestinationLocationId, out var backStack)
+            || backStack.Count == 0)
+        {
+            return;
+        }
+
+        var target = backStack.Pop();
+        if (!Directory.Exists(target))
+        {
+            UpdateNavigationButtons();
+            return;
+        }
+
+        if (!_destinationForwardHistoryByLocationId.TryGetValue(_activeDestinationLocationId, out var forwardStack))
+        {
+            forwardStack = new Stack<string>();
+            _destinationForwardHistoryByLocationId[_activeDestinationLocationId] = forwardStack;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentDestinationPath) && Directory.Exists(_currentDestinationPath))
+        {
+            forwardStack.Push(_currentDestinationPath);
+        }
+
+        NavigateDestinationToPath(target, clearForwardHistory: false, pushCurrentToBack: false);
+    }
+
+    private void DestinationForwardButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_activeDestinationLocationId)
+            || !_destinationForwardHistoryByLocationId.TryGetValue(_activeDestinationLocationId, out var forwardStack)
+            || forwardStack.Count == 0)
+        {
+            return;
+        }
+
+        var target = forwardStack.Pop();
+        if (!Directory.Exists(target))
+        {
+            UpdateNavigationButtons();
+            return;
+        }
+
+        if (!_destinationBackHistoryByLocationId.TryGetValue(_activeDestinationLocationId, out var backStack))
+        {
+            backStack = new Stack<string>();
+            _destinationBackHistoryByLocationId[_activeDestinationLocationId] = backStack;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentDestinationPath) && Directory.Exists(_currentDestinationPath))
+        {
+            backStack.Push(_currentDestinationPath);
+        }
+
+        NavigateDestinationToPath(target, clearForwardHistory: false, pushCurrentToBack: false);
     }
 
     private void SourceDateFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -783,8 +1085,24 @@ public partial class MainWindow : Window
             return;
         }
 
+        ToggleSourceSortByHeader(headerText);
+    }
+
+    private void ToggleSourceSortByHeader(string headerText)
+    {
+        if (string.IsNullOrWhiteSpace(headerText))
+        {
+            return;
+        }
+
         switch (headerText)
         {
+            case "T":
+            case "Type":
+                _sourceSortMode = _sourceSortMode == ItemSortMode.TypeAscending
+                    ? ItemSortMode.TypeDescending
+                    : ItemSortMode.TypeAscending;
+                break;
             case "Name":
                 _sourceSortMode = _sourceSortMode == ItemSortMode.NameAscending
                     ? ItemSortMode.NameDescending
@@ -825,8 +1143,24 @@ public partial class MainWindow : Window
             return;
         }
 
+        ToggleDestinationSortByHeader(headerText);
+    }
+
+    private void ToggleDestinationSortByHeader(string headerText)
+    {
+        if (string.IsNullOrWhiteSpace(headerText))
+        {
+            return;
+        }
+
         switch (headerText)
         {
+            case "T":
+            case "Type":
+                _destinationSortMode = _destinationSortMode == ItemSortMode.TypeAscending
+                    ? ItemSortMode.TypeDescending
+                    : ItemSortMode.TypeAscending;
+                break;
             case "Name":
                 _destinationSortMode = _destinationSortMode == ItemSortMode.NameAscending
                     ? ItemSortMode.NameDescending
@@ -1005,6 +1339,12 @@ public partial class MainWindow : Window
     {
         return sortMode switch
         {
+            ItemSortMode.TypeAscending => results
+                .OrderBy(result => GetTypeSortKey(result.Name, result.IsFolder), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(result => result.Name, StringComparer.OrdinalIgnoreCase),
+            ItemSortMode.TypeDescending => results
+                .OrderByDescending(result => GetTypeSortKey(result.Name, result.IsFolder), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(result => result.Name, StringComparer.OrdinalIgnoreCase),
             ItemSortMode.NameDescending => results.OrderByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase),
             ItemSortMode.DateModifiedNewest => results
                 .OrderByDescending(x => x.ModifiedUtc ?? DateTimeOffset.MinValue)
@@ -1020,6 +1360,12 @@ public partial class MainWindow : Window
     {
         return sortMode switch
         {
+            ItemSortMode.TypeAscending => paths
+                .OrderBy(path => GetPathTypeSortKey(path), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
+            ItemSortMode.TypeDescending => paths
+                .OrderByDescending(path => GetPathTypeSortKey(path), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
             ItemSortMode.NameDescending => paths.OrderByDescending(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
             ItemSortMode.DateModifiedNewest => paths
                 .OrderByDescending(path => TryGetLastWriteUtc(path) ?? DateTimeOffset.MinValue)
@@ -1029,6 +1375,28 @@ public partial class MainWindow : Window
                 .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase),
             _ => paths.OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
         };
+    }
+
+    private static string GetPathTypeSortKey(string path)
+    {
+        var isFolder = Directory.Exists(path);
+        return GetTypeSortKey(Path.GetFileName(path), isFolder);
+    }
+
+    private static string GetTypeSortKey(string name, bool isFolder)
+    {
+        if (isFolder)
+        {
+            return "folder";
+        }
+
+        var extension = Path.GetExtension(name);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return "file";
+        }
+
+        return extension.ToLowerInvariant();
     }
 
     private static bool MatchesDateFilter(string path, DateFilterPreset preset)
@@ -1119,6 +1487,7 @@ public partial class MainWindow : Window
                 : $"Selected: {selected.Name}";
             SelectedSourceRootTextBlock.ToolTip = selected?.Path;
         }
+        UpdateNavigationButtons();
         RefreshSourceItems();
         UpdateTransferContextBar();
     }
@@ -1158,6 +1527,7 @@ public partial class MainWindow : Window
                 : $"Selected: {selected.Name}";
             SelectedDestinationRootTextBlock.ToolTip = selected?.Path;
         }
+        UpdateNavigationButtons();
         RefreshDestinationItems();
         UpdateTransferContextBar();
     }
@@ -1328,6 +1698,15 @@ public partial class MainWindow : Window
 
     private void SourceItemListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source
+            && FindVisualParent<GridViewColumnHeader>(source) is GridViewColumnHeader header
+            && header.Column?.Header is not null)
+        {
+            ToggleSourceSortByHeader(header.Column.Header.ToString() ?? string.Empty);
+            e.Handled = true;
+            return;
+        }
+
         if (SourceItemListView.SelectedItem is not FileItemRow selectedItem)
         {
             return;
@@ -1336,13 +1715,7 @@ public partial class MainWindow : Window
         var path = selectedItem.FullPath;
         if (Directory.Exists(path))
         {
-            _currentSourcePath = path;
-            if (!string.IsNullOrWhiteSpace(_activeSourceLocationId))
-            {
-                _sourceCurrentPathByLocationId[_activeSourceLocationId] = _currentSourcePath;
-            }
-            SourceSearchTextBox.Text = string.Empty;
-            RefreshSourceItems();
+            NavigateSourceToPath(path, clearForwardHistory: true, pushCurrentToBack: true);
             return;
         }
 
@@ -1352,8 +1725,46 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SourceItemListView_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            if (SourceItemListView.SelectedItem is FileItemRow selectedItem
+                && selectedItem.IsFolder
+                && Directory.Exists(selectedItem.FullPath))
+            {
+                NavigateSourceToPath(selectedItem.FullPath, clearForwardHistory: true, pushCurrentToBack: true);
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (e.Key == Key.Back)
+        {
+            if (TryNavigateSourceUpOneLevel())
+            {
+                e.Handled = true;
+            }
+        }
+    }
+
     private void DestinationItemListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source
+            && FindVisualParent<GridViewColumnHeader>(source) is GridViewColumnHeader header
+            && header.Column?.Header is not null)
+        {
+            ToggleDestinationSortByHeader(header.Column.Header.ToString() ?? string.Empty);
+            e.Handled = true;
+            return;
+        }
+
         if (DestinationItemListView.SelectedItem is not FileItemRow selectedItem)
         {
             return;
@@ -1363,13 +1774,7 @@ public partial class MainWindow : Window
 
         if (Directory.Exists(path))
         {
-            _currentDestinationPath = path;
-            if (!string.IsNullOrWhiteSpace(_activeDestinationLocationId))
-            {
-                _destinationCurrentPathByLocationId[_activeDestinationLocationId] = _currentDestinationPath;
-            }
-            DestinationSearchTextBox.Text = string.Empty;
-            RefreshDestinationItems();
+            NavigateDestinationToPath(path, clearForwardHistory: true, pushCurrentToBack: true);
             return;
         }
 
@@ -1377,6 +1782,85 @@ public partial class MainWindow : Window
         {
             PreviewWindow.OpenPathWithShell(path);
         }
+    }
+
+    private void DestinationItemListView_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_isUiInitialized)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            if (DestinationItemListView.SelectedItem is FileItemRow selectedItem
+                && selectedItem.IsFolder
+                && Directory.Exists(selectedItem.FullPath))
+            {
+                NavigateDestinationToPath(selectedItem.FullPath, clearForwardHistory: true, pushCurrentToBack: true);
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (e.Key == Key.Back)
+        {
+            if (TryNavigateDestinationUpOneLevel())
+            {
+                e.Handled = true;
+            }
+        }
+    }
+
+    private bool TryNavigateSourceUpOneLevel()
+    {
+        var selectedRoot = GetSelectedSourceLocation()?.Path;
+        if (string.IsNullOrWhiteSpace(selectedRoot) || string.IsNullOrWhiteSpace(_currentSourcePath))
+        {
+            return false;
+        }
+
+        var current = Path.GetFullPath(_currentSourcePath);
+        var root = Path.GetFullPath(selectedRoot);
+        if (PathsEqual(current, root))
+        {
+            return false;
+        }
+
+        var parent = Directory.GetParent(current)?.FullName;
+        if (string.IsNullOrWhiteSpace(parent) || !Directory.Exists(parent) || !IsPathWithinRoot(parent, root))
+        {
+            return false;
+        }
+
+        NavigateSourceToPath(parent, clearForwardHistory: true, pushCurrentToBack: true);
+        return true;
+    }
+
+    private bool TryNavigateDestinationUpOneLevel()
+    {
+        var selectedRoot = GetSelectedDestinationLocation()?.Path;
+        if (string.IsNullOrWhiteSpace(selectedRoot) || string.IsNullOrWhiteSpace(_currentDestinationPath))
+        {
+            return false;
+        }
+
+        var current = Path.GetFullPath(_currentDestinationPath);
+        var root = Path.GetFullPath(selectedRoot);
+        if (PathsEqual(current, root))
+        {
+            return false;
+        }
+
+        var parent = Directory.GetParent(current)?.FullName;
+        if (string.IsNullOrWhiteSpace(parent) || !Directory.Exists(parent) || !IsPathWithinRoot(parent, root))
+        {
+            return false;
+        }
+
+        NavigateDestinationToPath(parent, clearForwardHistory: true, pushCurrentToBack: true);
+        return true;
     }
 
     private void PreviewSelectedButton_OnClick(object sender, RoutedEventArgs e)
@@ -1399,34 +1883,81 @@ public partial class MainWindow : Window
 
     private void CompareSelectedButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var selectedFiles = GetSelectedFilesForCompare();
-        if (selectedFiles.Count == 0)
+        var selectedItems = GetSelectedItemsForCompare();
+        if (selectedItems.Count == 0)
         {
-            MessageBox.Show(this, "Select a file from Source Items or Destination Items first.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "Select files or folders from Source Items or Destination Items first.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        if (selectedFiles.Count >= 2)
+        if (selectedItems.Count >= 2)
         {
-            OpenOrReusePreviewWindow(selectedFiles[0], selectedFiles[1]);
+            var left = selectedItems[0];
+            var right = selectedItems[1];
+
+            if (Directory.Exists(left) && Directory.Exists(right))
+            {
+                ShowFolderCompareResult(left, right);
+                return;
+            }
+
+            if (File.Exists(left) && File.Exists(right))
+            {
+                OpenOrReusePreviewWindow(left, right);
+                return;
+            }
+
+            MessageBox.Show(this, "Please compare either two files or two folders.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var primaryPath = selectedFiles[0];
-        var secondaryPath = PickCompareFilePath(primaryPath);
+        var primaryPath = selectedItems[0];
+        var secondaryPath = PickComparePath(primaryPath);
         if (string.IsNullOrWhiteSpace(secondaryPath))
         {
+            return;
+        }
+
+        if (Directory.Exists(primaryPath) && Directory.Exists(secondaryPath))
+        {
+            ShowFolderCompareResult(primaryPath, secondaryPath);
+            return;
+        }
+
+        if ((File.Exists(primaryPath) && Directory.Exists(secondaryPath))
+            || (Directory.Exists(primaryPath) && File.Exists(secondaryPath)))
+        {
+            MessageBox.Show(this, "Please compare either two files or two folders.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         OpenOrReusePreviewWindow(primaryPath, secondaryPath);
     }
 
-    private string? PickCompareFilePath(string primaryPath)
+    private string? PickComparePath(string primaryPath)
     {
         var initialDirectory = File.Exists(primaryPath)
             ? Path.GetDirectoryName(primaryPath)
-            : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            : Directory.Exists(primaryPath)
+                ? primaryPath
+                : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        if (Directory.Exists(primaryPath))
+        {
+            var folderDialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "Select folder to compare with",
+                InitialDirectory = initialDirectory,
+                Multiselect = false
+            };
+
+            if (folderDialog.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(folderDialog.FolderName))
+            {
+                return folderDialog.FolderName;
+            }
+
+            return null;
+        }
 
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -1445,15 +1976,15 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private List<string> GetSelectedFilesForCompare()
+    private List<string> GetSelectedItemsForCompare()
     {
         var sourceSelected = GetSelectedSourcePaths()
-            .Where(File.Exists)
+            .Where(path => File.Exists(path) || Directory.Exists(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var destinationSelected = GetSelectedDestinationPaths()
-            .Where(File.Exists)
+            .Where(path => File.Exists(path) || Directory.Exists(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -1490,6 +2021,65 @@ public partial class MainWindow : Window
         }
 
         return selected;
+    }
+
+    private void ShowFolderCompareResult(string leftFolder, string rightFolder)
+    {
+        try
+        {
+            var leftEntries = Directory
+                .EnumerateFileSystemEntries(leftFolder, "*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(leftFolder, path))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var rightEntries = Directory
+                .EnumerateFileSystemEntries(rightFolder, "*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(rightFolder, path))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var missingFromRight = leftEntries.Except(rightEntries, StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+            var missingFromLeft = rightEntries.Except(leftEntries, StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var summary = new List<string>
+            {
+                "Folder compare result",
+                string.Empty,
+                $"Left:  {leftFolder}",
+                $"Right: {rightFolder}",
+                string.Empty,
+                $"Items only in left ({missingFromRight.Count}):"
+            };
+
+            summary.AddRange(missingFromRight.Take(60).Select(item => $"- {item}"));
+            if (missingFromRight.Count > 60)
+            {
+                summary.Add($"- ... and {missingFromRight.Count - 60} more");
+            }
+
+            summary.Add(string.Empty);
+            summary.Add($"Items only in right ({missingFromLeft.Count}):");
+            summary.AddRange(missingFromLeft.Take(60).Select(item => $"- {item}"));
+            if (missingFromLeft.Count > 60)
+            {
+                summary.Add($"- ... and {missingFromLeft.Count - 60} more");
+            }
+
+            if (missingFromRight.Count == 0 && missingFromLeft.Count == 0)
+            {
+                summary.Add(string.Empty);
+                summary.Add("Folders match by file/folder names and structure.");
+            }
+
+            var window = new SimpleInfoWindow("Folder Compare", string.Join(Environment.NewLine, summary))
+            {
+                Owner = this
+            };
+            window.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Folder compare failed.\n\n{ex.Message}", "Compare", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void OpenOrReusePreviewWindow(string primaryPath, string? secondaryPath = null)
@@ -1531,37 +2121,49 @@ public partial class MainWindow : Window
         }
 
         var selectedFullPaths = GetSelectedSourcePaths();
+        await RunCopyOperationAsync(
+            selectedFullPaths,
+            destinationLocation,
+            ConflictResolution.ReplaceIfSameOtherwiseKeepBoth,
+            applyToAll: true,
+            "Copy completed.").ConfigureAwait(true);
+    }
 
-        var conflictResolution = ConflictResolution.KeepBoth;
-        var applyToAll = false;
-        if (selectedFullPaths.Count > 0)
+    private async void MoveToDestinationButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var destinationLocation = GetSelectedDestinationLocation();
+
+        if (destinationLocation is null)
         {
-            var firstFile = selectedFullPaths.FirstOrDefault(File.Exists);
-            if (firstFile is not null)
+            MessageBox.Show(this, "Select both a source location and destination location.", "Move", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var selectedFullPaths = GetSelectedSourcePaths();
+        if (selectedFullPaths.Count == 0)
+        {
+            MessageBox.Show(this, "Select one or more source items to move.", "Move", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_confirmBeforeMoveToDestination)
+        {
+            var confirm = MessageBox.Show(
+                this,
+                $"Move {selectedFullPaths.Count} selected item(s) to destination?",
+                "Move to Destination",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning,
+                MessageBoxResult.Cancel);
+
+            if (confirm != MessageBoxResult.OK)
             {
-                var destinationBasePath = GetCurrentDestinationPath(destinationLocation);
-                var expectedDestination = Path.Combine(destinationBasePath, Path.GetFileName(firstFile));
-                if (File.Exists(expectedDestination))
-                {
-                    var conflictDialog = new ConflictDialogWindow(firstFile, expectedDestination)
-                    {
-                        Owner = this
-                    };
-
-                    var dialogResult = conflictDialog.ShowDialog();
-                    if (dialogResult != true && conflictDialog.SelectedResolution == ConflictResolution.Cancel)
-                    {
-                        StatusTextBlock.Text = "Copy canceled.";
-                        return;
-                    }
-
-                    conflictResolution = conflictDialog.SelectedResolution;
-                    applyToAll = conflictDialog.ApplyToAll;
-                }
+                StatusTextBlock.Text = "Move canceled.";
+                return;
             }
         }
 
-        await RunCopyOperationAsync(selectedFullPaths, destinationLocation, conflictResolution, applyToAll, "Copy completed.").ConfigureAwait(true);
+        await RunMoveOperationAsync(selectedFullPaths, destinationLocation, "Move completed.").ConfigureAwait(true);
     }
 
     public async Task HandleShellCopyAsync(IReadOnlyList<string> shellPaths, string? preferredDestinationId = null)
@@ -1668,7 +2270,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void DestinationItemListView_OnDrop(object sender, DragEventArgs e)
+    private async void DestinationItemListView_OnDrop(object sender, System.Windows.DragEventArgs e)
     {
         var destinationLocation = GetSelectedDestinationLocation();
         if (destinationLocation is null)
@@ -1687,17 +2289,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        await RunCopyOperationAsync(dropped, destinationLocation, ConflictResolution.KeepBoth, applyToAll: true, "Drag-and-drop copy completed.").ConfigureAwait(true);
+        await RunCopyOperationAsync(dropped, destinationLocation, ConflictResolution.ReplaceIfSameOtherwiseKeepBoth, applyToAll: true, "Drag-and-drop copy completed.").ConfigureAwait(true);
         StatusTextBlock.Text = $"Copied {dropped.Length} dropped item(s) to {destinationLocation.Name}.";
     }
 
-    private void DestinationItemListView_OnDragOver(object sender, DragEventArgs e)
+    private void DestinationItemListView_OnDragOver(object sender, System.Windows.DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void SourceItemListView_OnPreviewMouseMove(object sender, MouseEventArgs e)
+    private void SourceItemListView_OnPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed)
         {
@@ -1745,7 +2347,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowColumnHeaderMenuForList(ListView listView, bool isSource, MouseButtonEventArgs e)
+    private void ShowColumnHeaderMenuForList(System.Windows.Controls.ListView listView, bool isSource, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject source)
         {
@@ -1909,7 +2511,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private async void MainWindow_OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C)
         {
@@ -2056,7 +2658,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        await RunCopyOperationAsync(paths, destination, ConflictResolution.KeepBoth, applyToAll: true, "Paste completed.").ConfigureAwait(true);
+        await RunCopyOperationAsync(paths, destination, ConflictResolution.ReplaceIfSameOtherwiseKeepBoth, applyToAll: true, "Paste completed.").ConfigureAwait(true);
 
         if (_pendingCutPaths.Count > 0)
         {
@@ -2511,6 +3113,23 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
+    private void SyncBoardButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_syncBoardWindow is not null)
+        {
+            _syncBoardWindow.Activate();
+            return;
+        }
+
+        _syncBoardWindow = new SyncBoardWindow(_fileOperationService, _preferencesStore)
+        {
+            Owner = this
+        };
+
+        _syncBoardWindow.Closed += (_, _) => _syncBoardWindow = null;
+        _syncBoardWindow.Show();
+    }
+
     private string ResolveSourcePath(string display, string sourceRoot)
     {
         if (_sourcePathByDisplay.TryGetValue(display, out var mapped))
@@ -2920,7 +3539,7 @@ public partial class MainWindow : Window
             }
 
             var localTime = latest.ToLocalTime();
-            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:MM-dd-yyyy h:mm:ss tt}";
+            HeaderLastIndexedTextBlock.Text = $"Last indexed: {localTime:M-d-yyyy h:mm:ss tt}";
             HeaderLastIndexedTextBlock.Foreground = System.Windows.Media.Brushes.SteelBlue;
         }
         catch
@@ -3207,13 +3826,13 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = $"Shortcut renamed: {newLabel}";
     }
 
-    private void ShortcutListBox_OnDragOver(object sender, DragEventArgs e)
+    private void ShortcutListBox_OnDragOver(object sender, System.Windows.DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void ShortcutListBox_OnDrop(object sender, DragEventArgs e)
+    private void ShortcutListBox_OnDrop(object sender, System.Windows.DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(DataFormats.FileDrop))
         {
@@ -3429,6 +4048,11 @@ public partial class MainWindow : Window
             Owner = this
         };
         window.ShowDialog();
+    }
+
+    private void ExitProgramMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        ExitProgram();
     }
 
     private void HelpButton_OnClick(object sender, RoutedEventArgs e)

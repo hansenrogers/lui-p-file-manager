@@ -1,10 +1,21 @@
 param(
     [string]$PublishDir = "$(Join-Path $PSScriptRoot '..\LuiP.FileManager.App\bin\Release\net8.0-windows\win-x64\publish')",
     [switch]$CreateDesktopShortcut,
-    [switch]$ForceCloseRunningApp
+    [switch]$ForceCloseRunningApp,
+    [switch]$SkipPublish
 )
 
 $ErrorActionPreference = 'Stop'
+
+if (-not $SkipPublish.IsPresent) {
+    $projectPath = Join-Path $PSScriptRoot '..\LuiP.FileManager.App\LuiP.FileManager.App.csproj'
+    $publishOutputDir = [System.IO.Path]::GetFullPath($PublishDir)
+
+    & dotnet publish $projectPath -c Release -f net8.0-windows -r win-x64 --self-contained false -o $publishOutputDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed with exit code $LASTEXITCODE"
+    }
+}
 
 $resolvedPublishDir = (Resolve-Path $PublishDir).Path
 if (-not (Test-Path $resolvedPublishDir)) {

@@ -186,6 +186,8 @@ public partial class SettingsWindow : Window
     {
         var prefs = _preferencesStore.Load();
         ChecksumDefaultCheckBox.IsChecked = prefs.VerifyLargeFileChecksumByDefault;
+        ConfirmMoveCheckBox.IsChecked = prefs.ConfirmBeforeMoveToDestination;
+        SyncBoardAutoSyncCheckBox.IsChecked = prefs.SyncBoardAutoSyncEnabled;
         var thresholdMb = Math.Max(1L, prefs.ChecksumThresholdBytes / (1024L * 1024L));
         ChecksumThresholdTextBox.Text = thresholdMb.ToString();
     }
@@ -201,12 +203,14 @@ public partial class SettingsWindow : Window
         var prefs = new AppPreferences
         {
             VerifyLargeFileChecksumByDefault = ChecksumDefaultCheckBox.IsChecked == true,
+            ConfirmBeforeMoveToDestination = ConfirmMoveCheckBox.IsChecked != false,
+            SyncBoardAutoSyncEnabled = SyncBoardAutoSyncCheckBox.IsChecked != false,
             ChecksumThresholdBytes = thresholdMb * 1024L * 1024L
         };
 
         _preferencesStore.Save(prefs);
         _onPreferencesUpdated?.Invoke();
-        MessageBox.Show(this, "Checksum verification defaults saved.", "Copy Verification", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(this, "Copy/move preferences saved.", "Copy Verification", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void RunLocalUninstallButton_OnClick(object sender, RoutedEventArgs e)

@@ -68,6 +68,10 @@ public sealed record AppPreferences
 {
     public bool VerifyLargeFileChecksumByDefault { get; init; }
 
+    public bool ConfirmBeforeMoveToDestination { get; init; } = true;
+
+    public bool SyncBoardAutoSyncEnabled { get; init; } = true;
+
     public long ChecksumThresholdBytes { get; init; } = 32L * 1024L * 1024L;
 
     public static AppPreferences Default()
@@ -75,6 +79,8 @@ public sealed record AppPreferences
         return new AppPreferences
         {
             VerifyLargeFileChecksumByDefault = false,
+            ConfirmBeforeMoveToDestination = true,
+            SyncBoardAutoSyncEnabled = true,
             ChecksumThresholdBytes = 32L * 1024L * 1024L
         };
     }

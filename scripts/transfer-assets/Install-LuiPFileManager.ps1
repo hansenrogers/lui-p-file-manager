@@ -129,5 +129,11 @@ Write-Host 'Optional next step: open app Settings and click Install under Window
 Write-Host "To uninstall, run: .\Uninstall-LuiPFileManager.ps1"
 
 if ($LaunchAfterInstall.IsPresent) {
-    Start-Process -FilePath $exePath -WorkingDirectory $appDir
+    try {
+        Start-Process -FilePath $exePath -WorkingDirectory $appDir -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Install succeeded, but automatic app launch failed: $($_.Exception.Message)"
+        Write-Warning 'You can start Lui-P File Manager from the Start menu shortcut.'
+    }
 }

@@ -6,7 +6,32 @@
         Height="520"
         MinWidth="680"
         MinHeight="460"
+        Background="#FF161C26"
+        Foreground="#FFDCE7F9"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#FF293446" />
+            <Setter Property="Foreground" Value="#FFDFE9FA" />
+            <Setter Property="BorderBrush" Value="#FF4E6484" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#FF1E2735" />
+            <Setter Property="Foreground" Value="#FFDCE7F9" />
+            <Setter Property="BorderBrush" Value="#FF4E6484" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#FFDCE7F9" />
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FFDCE7F9" />
+        </Style>
+    </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -26,7 +51,7 @@
             <Button Content="Index Status" Height="54" FontSize="16" Click="IndexStatusButton_OnClick" />
         </UniformGrid>
 
-        <Border Grid.Row="3" BorderBrush="#FFD9D9D9" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10" Background="#FFF9F9F9">
+        <Border Grid.Row="3" BorderBrush="#FF3F506A" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10" Background="#FF1F2836">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -46,7 +71,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="4" BorderBrush="#FFD9D9D9" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10" Background="#FFF9F9F9">
+        <Border Grid.Row="4" BorderBrush="#FF3F506A" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10" Background="#FF1F2836">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -56,6 +81,8 @@
                 <StackPanel>
                     <TextBlock Text="Copy Verification Defaults" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
                     <CheckBox x:Name="ChecksumDefaultCheckBox" Content="Enable large-file SHA-256 verification by default" Margin="0,0,0,8" />
+                    <CheckBox x:Name="ConfirmMoveCheckBox" Content="Ask for confirmation before Move to Destination" Margin="0,0,0,8" />
+                    <CheckBox x:Name="SyncBoardAutoSyncCheckBox" Content="Enable Sync Board auto-sync when project files change" Margin="0,0,0,8" />
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Threshold (MB):" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBox x:Name="ChecksumThresholdTextBox" Width="100" Height="28" VerticalContentAlignment="Center" />

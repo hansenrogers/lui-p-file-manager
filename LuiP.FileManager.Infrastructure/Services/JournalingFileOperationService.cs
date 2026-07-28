@@ -88,11 +88,12 @@ public sealed class JournalingFileOperationService : IFileOperationService
 
                 if (request.OperationType == FileOperationType.Copy && File.Exists(sourcePath))
                 {
-                    var destinationFile = ResolveDestinationFilePath(
+                    var destinationFile = await ResolveDestinationFilePathAsync(
                         request.DestinationPath!,
                         sourcePath,
                         request.ConflictResolution,
-                        operationId);
+                        operationId,
+                        cancellationToken).ConfigureAwait(false);
 
                     if (destinationFile is null)
                     {
@@ -315,11 +316,12 @@ public sealed class JournalingFileOperationService : IFileOperationService
         }
     }
 
-    private string? ResolveDestinationFilePath(
+    private async Task<string?> ResolveDestinationFilePathAsync(
         string destinationRoot,
         string sourcePath,
         ConflictResolution resolution,
-        string operationId)
+        string operationId,
+        CancellationToken cancellationToken)
     {
         var fileName = Path.GetFileName(sourcePath);
         var exactPath = Path.Combine(destinationRoot, fileName);
@@ -333,9 +335,41 @@ public sealed class JournalingFileOperationService : IFileOperationService
         {
             ConflictResolution.KeepBoth => BuildSafeDestinationPath(destinationRoot, fileName),
             ConflictResolution.Replace => BackupAndReturnReplaceTarget(exactPath, operationId),
+            ConflictResolution.ReplaceIfSameOtherwiseKeepBoth => await ResolveSmartCopyConflictAsync(sourcePath, destinationRoot, exactPath, fileName, operationId, cancellationToken).ConfigureAwait(false),
             ConflictResolution.Cancel => null,
             _ => BuildSafeDestinationPath(destinationRoot, fileName)
         };
+    }
+
+    private async Task<string> ResolveSmartCopyConflictAsync(
+        string sourcePath,
+        string destinationRoot,
+        string exactPath,
+        string fileName,
+        string operationId,
+        CancellationToken cancellationToken)
+    {
+        var filesMatch = await AreFilesContentEqualAsync(sourcePath, exactPath, cancellationToken).ConfigureAwait(false);
+        if (filesMatch)
+        {
+            return BackupAndReturnReplaceTarget(exactPath, operationId);
+        }
+
+        return BuildSafeDestinationPath(destinationRoot, fileName);
+    }
+
+    private static async Task<bool> AreFilesContentEqualAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken)
+    {
+        var sourceInfo = new FileInfo(sourcePath);
+        var destinationInfo = new FileInfo(destinationPath);
+        if (sourceInfo.Length != destinationInfo.Length)
+        {
+            return false;
+        }
+
+        var sourceHash = await ComputeSha256Async(sourcePath, cancellationToken).ConfigureAwait(false);
+        var destinationHash = await ComputeSha256Async(destinationPath, cancellationToken).ConfigureAwait(false);
+        return sourceHash.AsSpan().SequenceEqual(destinationHash);
     }
 
     private string BackupAndReturnReplaceTarget(string destinationFilePath, string operationId)

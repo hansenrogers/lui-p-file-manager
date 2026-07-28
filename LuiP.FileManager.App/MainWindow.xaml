@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:LuiP.FileManager.App"
         mc:Ignorable="d"
         Title="Lui-P File Manager"
-        Background="#FFF3F6FB"
+        Icon="pack://application:,,,/Assets/LuiPFileManager.ico"
+        Background="#FF121A26"
         FontFamily="Segoe UI"
         MinWidth="1100"
         MinHeight="700"
@@ -15,15 +16,43 @@
         WindowStartupLocation="CenterScreen"
         PreviewKeyDown="MainWindow_OnPreviewKeyDown">
     <Window.Resources>
-        <SolidColorBrush x:Key="PanelBgBrush" Color="#FFFFFFFF" />
-        <SolidColorBrush x:Key="PanelBorderBrush" Color="#FFD9E2F0" />
-        <SolidColorBrush x:Key="PrimaryBrush" Color="#FF0F62FE" />
+        <SolidColorBrush x:Key="PanelBgBrush" Color="#FF1C2839" />
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#FF7895BD" />
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#FFA9CBFF" />
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FFF2F7FF" />
+        </Style>
+
+        <Style TargetType="Menu">
+            <Setter Property="Foreground" Value="#FFF5F9FF" />
+            <Setter Property="Background" Value="#FF162131" />
+        </Style>
+
+        <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="#FFF5F9FF" />
+            <Setter Property="Background" Value="#FF162131" />
+        </Style>
+
+        <Style TargetType="ListView">
+            <Setter Property="Background" Value="#FF172333" />
+            <Setter Property="Foreground" Value="#FFF2F7FF" />
+            <Setter Property="BorderBrush" Value="#FF7895BD" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="#FF172333" />
+            <Setter Property="Foreground" Value="#FFF2F7FF" />
+            <Setter Property="BorderBrush" Value="#FF7895BD" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
 
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#FFFFFFFF" />
-            <Setter Property="BorderBrush" Value="#FFC7D6EC" />
+            <Setter Property="Background" Value="#FF2B3D56" />
+            <Setter Property="BorderBrush" Value="#FF88A9D3" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="#FF1D2A44" />
+            <Setter Property="Foreground" Value="#FFF5F9FF" />
             <Setter Property="Padding" Value="14,8" />
             <Setter Property="MinHeight" Value="38" />
             <Setter Property="Cursor" Value="Hand" />
@@ -38,11 +67,11 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#FFF1F6FF" />
-                    <Setter Property="BorderBrush" Value="#FF95B8F2" />
+                    <Setter Property="Background" Value="#FF385174" />
+                    <Setter Property="BorderBrush" Value="#FFA3C2EA" />
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#FFE4EEFF" />
+                    <Setter Property="Background" Value="#FF22334A" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.6" />
@@ -50,35 +79,148 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="CopyActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#FF2D5A38" />
+            <Setter Property="BorderBrush" Value="#FF4D8A5B" />
+            <Setter Property="Foreground" Value="#FFE8F7EC" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF336842" />
+                    <Setter Property="BorderBrush" Value="#FF5AA86B" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FF264D31" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="MoveActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#FF6A2A2A" />
+            <Setter Property="BorderBrush" Value="#FF9D4B4B" />
+            <Setter Property="Foreground" Value="#FFFCEBEB" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF7A3131" />
+                    <Setter Property="BorderBrush" Value="#FFB25F5F" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FF592323" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style TargetType="TextBox">
-            <Setter Property="BorderBrush" Value="#FFC7D6EC" />
+            <Setter Property="BorderBrush" Value="#FF8AAAD2" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="Background" Value="#FF1A2A3E" />
+            <Setter Property="Foreground" Value="#FFF3F8FF" />
             <Setter Property="MinHeight" Value="36" />
         </Style>
 
         <Style TargetType="ComboBox">
-            <Setter Property="BorderBrush" Value="#FFC7D6EC" />
+            <Setter Property="BorderBrush" Value="#FF8AAAD2" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="Background" Value="#FF20334B" />
+            <Setter Property="Foreground" Value="#FFF5F9FF" />
             <Setter Property="MinHeight" Value="32" />
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#FF20334B" />
+            <Setter Property="Foreground" Value="#FFF5F9FF" />
+            <Setter Property="Padding" Value="6,2" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#FF2E4C6F" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF3D6593" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DateFilterComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Background" Value="#FFF1F6FD" />
+            <Setter Property="Foreground" Value="#FF11273F" />
+            <Setter Property="BorderBrush" Value="#FF93B3DA" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="6,2" />
+        </Style>
+
+        <Style x:Key="DateFilterComboBoxItemStyle" TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+            <Setter Property="Background" Value="#FFF1F6FD" />
+            <Setter Property="Foreground" Value="#FF11273F" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#FFD8E7F8" />
+                    <Setter Property="Foreground" Value="#FF0D2136" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FFC1D8F2" />
+                    <Setter Property="Foreground" Value="#FF0A1A2C" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="#FF4B6F99" />
+            <Setter Property="Foreground" Value="#FFFFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFA9C4E6" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
         <Style TargetType="GroupBox">
             <Setter Property="Margin" Value="0" />
             <Setter Property="Padding" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderBrush" Value="#FFD3DEEE" />
+            <Setter Property="BorderBrush" Value="#FF7895BD" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="Background" Value="#FF1C2839" />
+            <Setter Property="Foreground" Value="#FFF2F7FF" />
+        </Style>
+
+        <Style x:Key="FileListItemStyle" TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="#FFF0F6FF" />
+            <Setter Property="Background" Value="#FF1A2A3E" />
+            <Setter Property="BorderBrush" Value="#00000000" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="2" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF2D4869" />
+                    <Setter Property="Foreground" Value="#FFF4F8FF" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF5A8AC2" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                    <Setter Property="BorderBrush" Value="#FFE6F1FF" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsSelected" Value="True" />
+                        <Condition Property="Selector.IsSelectionActive" Value="False" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#FF5A8AC2" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                    <Setter Property="BorderBrush" Value="#FFE6F1FF" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </MultiTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="LocationListItemStyle" TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="#FFF0F6FF" />
             <Setter Property="Padding" Value="8,6" />
             <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="#FFE2EAF6" />
-            <Setter Property="Background" Value="#FFFFFFFF" />
+            <Setter Property="BorderBrush" Value="#FF7895BD" />
+            <Setter Property="Background" Value="#FF1E2D42" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
@@ -91,12 +233,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#FFF2F7FF" />
-                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#FF9EB9E8" />
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#FF2E4C6F" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#FFA8C4E8" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#FFDCEAFF" />
-                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#FF2F6FCC" />
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#FF5A8AC2" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#FFD9E9FF" />
+                                <Setter Property="Foreground" Value="#FFFFFFFF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -106,7 +249,7 @@
 
     </Window.Resources>
     <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#FFFFFFFF" BorderBrush="#FFD8D8D8" BorderThickness="0,0,0,1" Padding="12">
+        <Border DockPanel.Dock="Top" Background="#FF2A3649" BorderBrush="#FF5A6F90" BorderThickness="0,0,0,1" Padding="12">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -117,11 +260,16 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Lui-P File Manager" FontSize="26" FontWeight="SemiBold" Foreground="#FF143056" Margin="0,0,16,0" />
+                    <TextBlock Text="Lui-P File Manager" FontSize="26" FontWeight="SemiBold" Foreground="#FFF1F6FF" Margin="0,0,16,0" />
                     <Menu Margin="0,0,8,0" VerticalAlignment="Center" Background="Transparent">
                         <MenuItem Header="File" FontSize="16" FontWeight="SemiBold">
+                            <MenuItem Header="Refresh" Click="RefreshButton_OnClick" />
+                            <MenuItem Header="Reset Layout" Click="ResetLayoutButton_OnClick" />
+                            <Separator />
                             <MenuItem Header="Activity Log" Click="ActivityLogButton_OnClick" />
                             <MenuItem Header="Settings" Click="SettingsButton_OnClick" />
+                            <Separator />
+                            <MenuItem Header="Exit Program" Click="ExitProgramMenuItem_OnClick" />
                         </MenuItem>
                         <MenuItem Header="Help" FontSize="16" FontWeight="SemiBold">
                             <MenuItem Header="Help" Click="HelpButton_OnClick" />
@@ -131,31 +279,31 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" AutomationProperties.Name="Refresh file lists" />
+                    <Button Content="Sync Board" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="SyncBoardButton_OnClick" AutomationProperties.Name="Open sync board" />
                     <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" AutomationProperties.Name="Preview selected item" />
                     <Button Content="Compare Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="150" Click="CompareSelectedButton_OnClick" AutomationProperties.Name="Compare two selected files" />
-                    <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
-                    <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
-                    <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
-                    <Button x:Name="ResetLayoutButton" Content="Reset Layout" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ResetLayoutButton_OnClick" />
+                    <Button Content="Copy -&gt; Destination" Style="{StaticResource CopyActionButtonStyle}" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
+                    <Button Content="Move -&gt; Destination" Style="{StaticResource MoveActionButtonStyle}" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="MoveToDestinationButton_OnClick" AutomationProperties.Name="Move selected source items to destination" />
+                    <Button Content="+ Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="110" Click="CreateFolderButton_OnClick" />
+                    <Button Content="- Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="110" Click="DeleteSelectedButton_OnClick" />
                     <Button Margin="0,0,0,0"
                             Padding="10,6"
                             MinHeight="30"
                             Click="RebuildIndexButton_OnClick"
                             ToolTip="Click to open full index details">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse x:Name="HeaderIndexingDot" Width="9" Height="9" Fill="#FF2A7A2A" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <Ellipse x:Name="HeaderIndexingDot" Width="9" Height="9" Fill="#FF4DAE6C" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock x:Name="HeaderIndexingTextBlock"
                                        Text="Indexing"
                                        VerticalAlignment="Center"
-                                       Foreground="#FF234066"
+                                       Foreground="#FFE6EEFA"
                                        FontSize="12"
                                        FontWeight="SemiBold"
                                        Margin="0,0,8,0" />
                             <TextBlock x:Name="HeaderLastIndexedTextBlock"
                                        Text="Last indexed: not yet"
                                        VerticalAlignment="Center"
-                                       Foreground="#FF48607E"
+                                       Foreground="#FFD4DEED"
                                        FontSize="12" />
                         </StackPanel>
                     </Button>
@@ -163,7 +311,7 @@
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Bottom" BorderBrush="#FFD8D8D8" BorderThickness="0,1,0,0" Padding="10" Background="#FFFAFAFA">
+        <Border DockPanel.Dock="Bottom" BorderBrush="#FF5A6F90" BorderThickness="0,1,0,0" Padding="10" Background="#FF273447">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -176,14 +324,14 @@
                            x:Name="StatusTextBlock"
                            Text="Drop files, folders, or programs here"
                            VerticalAlignment="Center"
-                           Foreground="#FF525252"
+                           Foreground="#FFD7E3F7"
                            FontSize="14" />
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Bottom" BorderBrush="#FFE2E2E2" BorderThickness="0,1,0,0" Padding="8" Background="#FFFFFFFF">
+        <Border DockPanel.Dock="Bottom" BorderBrush="#FF5A6F90" BorderThickness="0,1,0,0" Padding="8" Background="#FF2A3649">
             <ListBox x:Name="ShortcutListBox"
-                     Height="112"
+                     Height="128"
                      FontSize="14"
                      HorizontalContentAlignment="Stretch"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -202,8 +350,8 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
-                        <Setter Property="Width" Value="92" />
-                        <Setter Property="Height" Value="94" />
+                        <Setter Property="Width" Value="112" />
+                        <Setter Property="Height" Value="112" />
                         <Setter Property="Margin" Value="4" />
                         <Setter Property="Padding" Value="4" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -212,10 +360,20 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border Padding="6" CornerRadius="8" BorderBrush="#FFD7E2F2" BorderThickness="1" Background="#FFFFFFFF">
+                        <Border Padding="6" CornerRadius="8" BorderBrush="#FF5A6F90" BorderThickness="1" Background="#FF2A3649">
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <Image Source="{Binding Icon}" Width="48" Height="48" Margin="0,0,0,6" Stretch="Uniform" />
-                                <TextBlock Text="{Binding Label}" Width="80" TextAlignment="Center" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" FontSize="12" FontWeight="SemiBold" Foreground="#FF203352" />
+                                <TextBlock Text="{Binding Label}"
+                                           Width="100"
+                                           Height="28"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           LineStackingStrategy="BlockLineHeight"
+                                           LineHeight="14"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#FFE8EFFA" />
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -246,7 +404,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Configured source roots" FontSize="13" Foreground="#FF4E607A" Margin="2,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Configured source roots" FontSize="13" Foreground="#FFC6D3E8" Margin="2,0,0,0" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button Content="+" MinWidth="34" Height="28" Margin="0,0,6,0" FontSize="16" Click="SourceAddLocationButton_OnClick" ToolTip="Add source location" />
                             <Button Content="-" MinWidth="34" Height="28" FontSize="16" Click="SourceRemoveLocationButton_OnClick" ToolTip="Remove selected source location" />
@@ -259,12 +417,12 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <TextBlock x:Name="SelectedSourceRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FF2A4E87" Text="Source root: none" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="SelectedSourceRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FFAEC4E6" Text="Source root: none" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </GroupBox>
 
             <Grid Grid.Column="1" Margin="0">
-                <GridSplitter x:Name="SourceLocationsGridSplitter" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+                <GridSplitter x:Name="SourceLocationsGridSplitter" Width="5" HorizontalAlignment="Stretch" Background="#FF5A6F90" />
                 <Button x:Name="SourceLocationsCollapseButton"
                         Width="16"
                         Height="24"
@@ -272,8 +430,8 @@
                         FontSize="11"
                     FontWeight="Bold"
                     Foreground="#FFFFFFFF"
-                    Background="#FF2F6FCC"
-                    BorderBrush="#FF1F4F99"
+                    Background="#FF30445E"
+                    BorderBrush="#FF496386"
                     BorderThickness="1"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Top"
@@ -296,21 +454,28 @@
                                Text="Moving: None"
                                Margin="2,0,2,8"
                                FontSize="12"
-                               Foreground="#FF2A4E87"
+                               Foreground="#FFF1F7FF"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Row="1" Text="Search source files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
+                    <TextBlock Grid.Row="1" Text="Search source files and folders" FontSize="12" Foreground="#FFE9F2FF" Margin="2,0,0,4" />
                     <TextBox x:Name="SourceSearchTextBox" Grid.Row="2" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search files and folders" TextChanged="SourceSearchTextBox_OnTextChanged" AutomationProperties.Name="Search source files and folders" />
-                    <ComboBox x:Name="SourceDateFilterComboBox" Grid.Row="3" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="SourceDateFilterComboBox_OnSelectionChanged" AutomationProperties.Name="Source date filter">
-                        <ComboBoxItem Content="All Dates" IsSelected="True" />
-                        <ComboBoxItem Content="Today" />
-                        <ComboBoxItem Content="Last 7 Days" />
-                        <ComboBoxItem Content="Last 30 Days" />
-                        <ComboBoxItem Content="This Year" />
+                    <ComboBox x:Name="SourceDateFilterComboBox" Grid.Row="3" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="SourceDateFilterComboBox_OnSelectionChanged" AutomationProperties.Name="Source date filter" Style="{StaticResource DateFilterComboBoxStyle}">
+                        <ComboBoxItem Content="All Dates" IsSelected="True" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="Today" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="Last 7 Days" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="Last 30 Days" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="This Year" Style="{StaticResource DateFilterComboBoxItemStyle}" />
                     </ComboBox>
                     <Grid Grid.Row="4" Margin="0,0,0,8">
-                        <TextBlock x:Name="SourceCurrentPathTextBlock" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="SourceBackButton" Grid.Column="0" Content="&lt;" Width="30" Height="26" Margin="0,0,6,0" Click="SourceBackButton_OnClick" ToolTip="Back" />
+                        <Button x:Name="SourceForwardButton" Grid.Column="1" Content="&gt;" Width="30" Height="26" Margin="0,0,8,0" Click="SourceForwardButton_OnClick" ToolTip="Forward" />
+                        <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="2" VerticalAlignment="Center" Foreground="#FFEAF3FF" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" PreviewMouseRightButtonUp="SourceItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="SourceItemColumnHeader_OnClick" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewKeyDown="SourceItemListView_OnPreviewKeyDown" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" PreviewMouseRightButtonUp="SourceItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="SourceItemColumnHeader_OnClick" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue" ItemContainerStyle="{StaticResource FileListItemStyle}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="T" Width="34">
@@ -336,7 +501,7 @@
                 </Grid>
             </GroupBox>
 
-            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="#FF5A6F90" />
 
             <GroupBox Header="Destination Items" Padding="8" Grid.Column="4">
                 <Grid>
@@ -352,21 +517,28 @@
                                Text="Going To: No destination selected"
                                Margin="2,0,2,8"
                                FontSize="12"
-                               Foreground="#FF2A4E87"
+                               Foreground="#FFF1F7FF"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Row="1" Text="Search destination files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
+                    <TextBlock Grid.Row="1" Text="Search destination files and folders" FontSize="12" Foreground="#FFE9F2FF" Margin="2,0,0,4" />
                     <TextBox x:Name="DestinationSearchTextBox" Grid.Row="2" Height="36" FontSize="16" Padding="8,4,8,4" VerticalContentAlignment="Center" Margin="0,0,0,8" ToolTip="Search destination folder" TextChanged="DestinationSearchTextBox_OnTextChanged" AutomationProperties.Name="Search destination files and folders" />
-                    <ComboBox x:Name="DestinationDateFilterComboBox" Grid.Row="3" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="DestinationDateFilterComboBox_OnSelectionChanged" AutomationProperties.Name="Destination date filter">
-                        <ComboBoxItem Content="All Dates" IsSelected="True" />
-                        <ComboBoxItem Content="Today" />
-                        <ComboBoxItem Content="Last 7 Days" />
-                        <ComboBoxItem Content="Last 30 Days" />
-                        <ComboBoxItem Content="This Year" />
+                    <ComboBox x:Name="DestinationDateFilterComboBox" Grid.Row="3" Height="30" FontSize="14" Margin="0,0,0,8" SelectionChanged="DestinationDateFilterComboBox_OnSelectionChanged" AutomationProperties.Name="Destination date filter" Style="{StaticResource DateFilterComboBoxStyle}">
+                        <ComboBoxItem Content="All Dates" IsSelected="True" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="Today" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="Last 7 Days" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="Last 30 Days" Style="{StaticResource DateFilterComboBoxItemStyle}" />
+                        <ComboBoxItem Content="This Year" Style="{StaticResource DateFilterComboBoxItemStyle}" />
                     </ComboBox>
                     <Grid Grid.Row="4" Margin="0,0,0,8">
-                        <TextBlock x:Name="DestinationCurrentPathTextBlock" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="DestinationBackButton" Grid.Column="0" Content="&lt;" Width="30" Height="26" Margin="0,0,6,0" Click="DestinationBackButton_OnClick" ToolTip="Back" />
+                        <Button x:Name="DestinationForwardButton" Grid.Column="1" Content="&gt;" Width="30" Height="26" Margin="0,0,8,0" Click="DestinationForwardButton_OnClick" ToolTip="Forward" />
+                        <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="2" VerticalAlignment="Center" Foreground="#FFEAF3FF" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" PreviewMouseRightButtonUp="DestinationItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="DestinationItemColumnHeader_OnClick" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" PreviewKeyDown="DestinationItemListView_OnPreviewKeyDown" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" PreviewMouseRightButtonUp="DestinationItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="DestinationItemColumnHeader_OnClick" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue" ItemContainerStyle="{StaticResource FileListItemStyle}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="T" Width="34">
@@ -393,7 +565,7 @@
             </GroupBox>
 
             <Grid Grid.Column="5" Margin="0">
-                <GridSplitter x:Name="DestinationLocationsGridSplitter" Width="5" HorizontalAlignment="Stretch" Background="#FFDDDDDD" />
+                <GridSplitter x:Name="DestinationLocationsGridSplitter" Width="5" HorizontalAlignment="Stretch" Background="#FF5A6F90" />
                 <Button x:Name="DestinationLocationsCollapseButton"
                         Width="16"
                         Height="24"
@@ -401,8 +573,8 @@
                         FontSize="11"
                     FontWeight="Bold"
                     Foreground="#FFFFFFFF"
-                    Background="#FF2F6FCC"
-                    BorderBrush="#FF1F4F99"
+                    Background="#FF30445E"
+                    BorderBrush="#FF496386"
                     BorderThickness="1"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Top"
@@ -423,7 +595,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Configured destination roots" FontSize="13" Foreground="#FF4E607A" Margin="2,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Configured destination roots" FontSize="13" Foreground="#FFC6D3E8" Margin="2,0,0,0" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button Content="+" MinWidth="34" Height="28" Margin="0,0,6,0" FontSize="16" Click="DestinationAddLocationButton_OnClick" ToolTip="Add destination location" />
                             <Button Content="-" MinWidth="34" Height="28" FontSize="16" Click="DestinationRemoveLocationButton_OnClick" ToolTip="Remove selected destination location" />
@@ -436,7 +608,7 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <TextBlock x:Name="SelectedDestinationRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FF2A4E87" Text="Destination root: none" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="SelectedDestinationRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FFAEC4E6" Text="Destination root: none" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </GroupBox>
         </Grid>

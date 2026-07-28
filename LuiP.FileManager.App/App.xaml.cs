@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
 using System.IO;
+using System.IO.Pipes;
 using LuiP.FileManager.Core.Models;
 using LuiP.FileManager.Core.Services;
 using LuiP.FileManager.Infrastructure.Services;
@@ -10,17 +11,30 @@ namespace LuiP.FileManager.App;
 /// <summary>
 /// Interaction logic for App.xaml
 /// </summary>
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
+	private const string SingleInstanceMutexName = "LuiP.FileManager.App.SingleInstance";
+	private const string SingleInstancePipeName = "LuiP.FileManager.App.Activation";
 	private static readonly IAppPathsProvider _pathsProvider = new WindowsAppPathsProvider();
+	private static Mutex? _singleInstanceMutex;
 	private bool _mainWindowShown;
+	private CancellationTokenSource? _singleInstanceCts;
+	private Task? _singleInstanceListenerTask;
 
 	protected override void OnStartup(StartupEventArgs e)
 	{
+		if (!TryAcquireSingleInstance())
+		{
+			SignalPrimaryInstanceToActivate();
+			Shutdown(0);
+			return;
+		}
+
 		AppDomain.CurrentDomain.UnhandledException += CurrentDomain_OnUnhandledException;
 		DispatcherUnhandledException += App_OnDispatcherUnhandledException;
 
 		EnsureInfrastructureInitialized();
+		StartSingleInstanceListener();
 
 		base.OnStartup(e);
 		MainWindow? mainWindow = null;
@@ -48,6 +62,99 @@ public partial class App : Application
 		{
 			_ = mainWindow.HandleShellCopyAsync(shellRequest.Paths, shellRequest.DestinationId);
 		}
+	}
+
+	protected override void OnExit(ExitEventArgs e)
+	{
+		try
+		{
+			_singleInstanceCts?.Cancel();
+			_singleInstanceListenerTask?.Wait(TimeSpan.FromMilliseconds(500));
+		}
+		catch
+		{
+			// Best effort shutdown cleanup.
+		}
+		finally
+		{
+			_singleInstanceCts?.Dispose();
+			_singleInstanceCts = null;
+			_singleInstanceMutex?.ReleaseMutex();
+			_singleInstanceMutex?.Dispose();
+			_singleInstanceMutex = null;
+		}
+
+		base.OnExit(e);
+	}
+
+	private static bool TryAcquireSingleInstance()
+	{
+		var mutex = new Mutex(initiallyOwned: true, name: SingleInstanceMutexName, createdNew: out var createdNew);
+		if (!createdNew)
+		{
+			mutex.Dispose();
+			return false;
+		}
+
+		_singleInstanceMutex = mutex;
+		return true;
+	}
+
+	private static void SignalPrimaryInstanceToActivate()
+	{
+		try
+		{
+			using var client = new NamedPipeClientStream(".", SingleInstancePipeName, PipeDirection.Out);
+			client.Connect(1200);
+			using var writer = new StreamWriter(client) { AutoFlush = true };
+			writer.WriteLine("activate");
+		}
+		catch
+		{
+			// Primary instance may be starting up; no further action needed.
+		}
+	}
+
+	private void StartSingleInstanceListener()
+	{
+		_singleInstanceCts = new CancellationTokenSource();
+		var token = _singleInstanceCts.Token;
+
+		_singleInstanceListenerTask = Task.Run(async () =>
+		{
+			while (!token.IsCancellationRequested)
+			{
+				try
+				{
+					await using var server = new NamedPipeServerStream(
+						SingleInstancePipeName,
+						PipeDirection.In,
+						1,
+						PipeTransmissionMode.Byte,
+						PipeOptions.Asynchronous);
+
+					await server.WaitForConnectionAsync(token).ConfigureAwait(false);
+					using var reader = new StreamReader(server);
+					_ = await reader.ReadLineAsync().ConfigureAwait(false);
+
+					await Dispatcher.InvokeAsync(() =>
+					{
+						if (MainWindow is MainWindow mainWindow)
+						{
+							mainWindow.RestoreFromExternalActivation();
+						}
+					}, DispatcherPriority.Normal);
+				}
+				catch (OperationCanceledException)
+				{
+					break;
+				}
+				catch
+				{
+					// Keep listener resilient to transient pipe errors.
+				}
+			}
+		}, token);
 	}
 
 	private static void CurrentDomain_OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

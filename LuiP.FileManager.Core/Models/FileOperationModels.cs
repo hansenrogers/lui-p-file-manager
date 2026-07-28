@@ -24,7 +24,8 @@ public enum ConflictResolution
 {
     KeepBoth = 0,
     Replace = 1,
-    Cancel = 2
+    Cancel = 2,
+    ReplaceIfSameOtherwiseKeepBoth = 3
 }
 
 public sealed class FileOperationRequest
