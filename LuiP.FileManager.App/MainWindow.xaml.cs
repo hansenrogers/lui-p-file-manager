@@ -1718,7 +1718,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void CreateFolderButton_OnClick(object sender, RoutedEventArgs e)
+    private void CreateFolderButton_OnClick(object sender, RoutedEventArgs e)
     {
         var destination = GetSelectedDestinationLocation();
         if (destination is null)
