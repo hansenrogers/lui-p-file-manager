@@ -39,6 +39,7 @@ public partial class MainWindow : Window
 
     private const uint ShgfiIcon = 0x000000100;
     private const uint ShgfiSmallIcon = 0x000000001;
+    private const uint ShgfiLargeIcon = 0x000000000;
     private const uint ShgfiUseFileAttributes = 0x000000010;
     private const uint FileAttributeDirectory = 0x00000010;
     private const uint FileAttributeNormal = 0x00000080;
@@ -101,6 +102,7 @@ public partial class MainWindow : Window
     private string? _activeDestinationLocationId;
     private TimeSpan? _lastIndexDuration;
     private UiState? _loadedUiState;
+    private PreviewWindow? _previewWindow;
 
     public MainWindow()
     {
@@ -217,6 +219,12 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnClosed(object? sender, EventArgs e)
     {
+        if (_previewWindow is not null)
+        {
+            _previewWindow.Close();
+            _previewWindow = null;
+        }
+
         _indexReconcileTimer.Stop();
         DisposeIndexWatchers();
         foreach (var pair in _watcherDebounceByLocation)
@@ -1373,18 +1381,54 @@ public partial class MainWindow : Window
 
     private void PreviewSelectedButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var path = ResolveSelectedPreviewPath();
-        if (path is null)
+        var selectedFiles = GetActiveSelectedPreviewFiles();
+        if (selectedFiles.Count == 0)
         {
             MessageBox.Show(this, "Select a file from Source Items or Destination Items first.", "Preview", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var window = new PreviewWindow(path)
+        if (selectedFiles.Count >= 2)
         {
-            Owner = this
-        };
-        window.Show();
+            OpenOrReusePreviewWindow(selectedFiles[0], selectedFiles[1]);
+            return;
+        }
+
+        OpenOrReusePreviewWindow(selectedFiles[0]);
+    }
+
+    private void CompareSelectedButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var selectedFiles = GetActiveSelectedPreviewFiles();
+        if (selectedFiles.Count < 2)
+        {
+            MessageBox.Show(this, "Select two files to compare.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        OpenOrReusePreviewWindow(selectedFiles[0], selectedFiles[1]);
+    }
+
+    private void OpenOrReusePreviewWindow(string primaryPath, string? secondaryPath = null)
+    {
+        if (_previewWindow is null || !_previewWindow.IsLoaded)
+        {
+            _previewWindow = new PreviewWindow(primaryPath, secondaryPath)
+            {
+                Owner = this
+            };
+            _previewWindow.Closed += (_, _) => _previewWindow = null;
+            _previewWindow.Show();
+            return;
+        }
+
+        _previewWindow.SetPaths(primaryPath, secondaryPath);
+        if (_previewWindow.WindowState == WindowState.Minimized)
+        {
+            _previewWindow.WindowState = WindowState.Normal;
+        }
+
+        _previewWindow.Activate();
     }
 
     private async void CopyToDestinationButton_OnClick(object sender, RoutedEventArgs e)
@@ -2902,7 +2946,7 @@ public partial class MainWindow : Window
                     Id = shortcut.Id,
                     Label = shortcut.Label,
                     FullPath = shortcut.TargetPath,
-                    Icon = GetWindowsShellIcon(shortcut.TargetPath, shortcut.TargetKind == ShortcutTargetKind.Folder, shortcut.TargetKind)
+                    Icon = GetWindowsShellIcon(shortcut.TargetPath, shortcut.TargetKind == ShortcutTargetKind.Folder, shortcut.TargetKind, smallIcon: false)
                 });
             }
             catch
@@ -2912,7 +2956,7 @@ public partial class MainWindow : Window
                     Id = shortcut.Id,
                     Label = shortcut.Label,
                     FullPath = shortcut.TargetPath,
-                    Icon = GetWindowsShellIcon(shortcut.TargetPath, false, ShortcutTargetKind.File)
+                    Icon = GetWindowsShellIcon(shortcut.TargetPath, false, ShortcutTargetKind.File, smallIcon: false)
                 });
             }
         }
@@ -3000,6 +3044,49 @@ public partial class MainWindow : Window
         return _shortcutById.TryGetValue(selected.Id, out var shortcut)
             ? shortcut
             : null;
+    }
+
+    private void ShortcutListBox_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var item = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (item is null)
+        {
+            return;
+        }
+
+        item.IsSelected = true;
+        item.Focus();
+    }
+
+    private void ShortcutRenameMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        var shortcut = GetSelectedShortcut();
+        if (shortcut is null)
+        {
+            MessageBox.Show(this, "Select a shortcut to rename.", "Shortcuts", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var prompt = new InputPromptWindow("Rename Shortcut", "Enter shortcut display name:", shortcut.Label)
+        {
+            Owner = this
+        };
+
+        if (prompt.ShowDialog() != true || string.IsNullOrWhiteSpace(prompt.Result))
+        {
+            return;
+        }
+
+        var newLabel = prompt.Result.Trim();
+        if (string.Equals(newLabel, shortcut.Label, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        shortcut.Label = newLabel;
+        _shortcutRepository.UpsertAsync(shortcut, CancellationToken.None).GetAwaiter().GetResult();
+        RefreshShortcuts();
+        StatusTextBlock.Text = $"Shortcut renamed: {newLabel}";
     }
 
     private void ShortcutListBox_OnDragOver(object sender, DragEventArgs e)
@@ -3102,21 +3189,22 @@ public partial class MainWindow : Window
             : ShortcutTargetKind.File;
     }
 
-    private static ImageSource? GetWindowsShellIcon(string path, bool isFolder, ShortcutTargetKind kind)
+    private static ImageSource? GetWindowsShellIcon(string path, bool isFolder, ShortcutTargetKind kind, bool smallIcon = true)
     {
         var key = isFolder
-            ? "folder"
+            ? $"folder:{(smallIcon ? "small" : "large")}"
             : kind == ShortcutTargetKind.Program
-                ? $"program:{path}"
-                : $"file:{Path.GetExtension(path).ToLowerInvariant()}";
+                ? $"program:{path}:{(smallIcon ? "small" : "large")}"
+                : $"file:{Path.GetExtension(path).ToLowerInvariant()}:{(smallIcon ? "small" : "large")}";
 
-        return ShellIconCache.GetOrAdd(key, _ => LoadWindowsShellIcon(path, isFolder));
+        return ShellIconCache.GetOrAdd(key, _ => LoadWindowsShellIcon(path, isFolder, smallIcon));
     }
 
-    private static ImageSource? LoadWindowsShellIcon(string path, bool isFolder)
+    private static ImageSource? LoadWindowsShellIcon(string path, bool isFolder, bool smallIcon)
     {
         var attributes = isFolder ? FileAttributeDirectory : FileAttributeNormal;
-        var flags = ShgfiIcon | ShgfiSmallIcon | ShgfiUseFileAttributes;
+        var iconSizeFlag = smallIcon ? ShgfiSmallIcon : ShgfiLargeIcon;
+        var flags = ShgfiIcon | iconSizeFlag | ShgfiUseFileAttributes;
 
         var queryPath = path;
         if (string.IsNullOrWhiteSpace(queryPath))
@@ -3135,7 +3223,7 @@ public partial class MainWindow : Window
             var icon = Imaging.CreateBitmapSourceFromHIcon(
                 shFileInfo.hIcon,
                 Int32Rect.Empty,
-                BitmapSizeOptions.FromWidthAndHeight(16, 16));
+                BitmapSizeOptions.FromWidthAndHeight(smallIcon ? 16 : 48, smallIcon ? 16 : 48));
             icon.Freeze();
             return icon;
         }
@@ -3158,6 +3246,12 @@ public partial class MainWindow : Window
 
     private string? ResolveSelectedPreviewPath()
     {
+        var selectedFiles = GetActiveSelectedPreviewFiles();
+        if (selectedFiles.Count > 0)
+        {
+            return selectedFiles[0];
+        }
+
         if (SourceItemListView.SelectedItem is FileItemRow sourceItem)
         {
             return sourceItem.FullPath;
@@ -3169,6 +3263,34 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private List<string> GetActiveSelectedPreviewFiles()
+    {
+        List<string> candidates;
+
+        if (SourceItemListView.IsKeyboardFocusWithin)
+        {
+            candidates = GetSelectedSourcePaths();
+        }
+        else if (DestinationItemListView.IsKeyboardFocusWithin)
+        {
+            candidates = GetSelectedDestinationPaths();
+        }
+        else if (SourceItemListView.SelectedItems.Count > 0)
+        {
+            candidates = GetSelectedSourcePaths();
+        }
+        else
+        {
+            candidates = GetSelectedDestinationPaths();
+        }
+
+        return candidates
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToList();
     }
 
     private void AboutButton_OnClick(object sender, RoutedEventArgs e)

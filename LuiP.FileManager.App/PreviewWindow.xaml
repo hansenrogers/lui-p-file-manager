@@ -1,6 +1,7 @@
 <Window x:Class="LuiP.FileManager.App.PreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Preview - Lui-P File Manager"
         Width="980"
         Height="700"
@@ -16,6 +17,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="HeaderTextBlock" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Compare With..." MinWidth="120" Padding="12,8" Margin="0,0,8,0" Click="CompareWithButton_OnClick" />
+                    <Button Content="Single View" MinWidth="110" Padding="12,8" Margin="0,0,8,0" Click="SingleViewButton_OnClick" />
                     <Button Content="Open Default" MinWidth="120" Padding="12,8" Margin="0,0,8,0" Click="OpenDefaultButton_OnClick" />
                     <Button Content="Show in Folder" MinWidth="120" Padding="12,8" Click="ShowInFolderButton_OnClick" />
                 </StackPanel>
@@ -25,10 +28,54 @@
         <TabControl x:Name="PreviewTabControl">
             <TabItem Header="Preview">
                 <Grid Margin="6">
-                    <Image x:Name="ImagePreview" Stretch="Uniform" Visibility="Collapsed" />
-                    <TextBox x:Name="TextPreview" Visibility="Collapsed" FontFamily="Consolas" FontSize="13" IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
-                    <MediaElement x:Name="MediaPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop" />
-                    <TextBlock x:Name="UnavailableText" Visibility="Collapsed" FontSize="14" TextWrapping="Wrap" />
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="CompareSplitterColumn" Width="0" />
+                        <ColumnDefinition x:Name="CompareRightColumn" Width="0" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,4,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="PrimaryTitleTextBlock" FontWeight="SemiBold" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
+                            <Grid Grid.Row="1">
+                                <Image x:Name="PrimaryImagePreview" Stretch="Uniform" Visibility="Collapsed" />
+                                <TextBox x:Name="PrimaryTextPreview" Visibility="Collapsed" FontFamily="Consolas" FontSize="13" IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+                                <MediaElement x:Name="PrimaryMediaPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop" />
+                                <wv2:WebView2 x:Name="PrimaryPdfPreview" Visibility="Collapsed" />
+                                <TextBlock x:Name="PrimaryUnavailableText" Visibility="Collapsed" FontSize="14" TextWrapping="Wrap" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <GridSplitter x:Name="CompareSplitter"
+                                  Grid.Column="1"
+                                  Width="5"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  ResizeBehavior="PreviousAndNext"
+                                  Background="#FFD5D5D5"
+                                  Visibility="Collapsed" />
+
+                    <Border x:Name="SecondaryPaneBorder" Grid.Column="2" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" Padding="6" Margin="4,0,0,0" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="SecondaryTitleTextBlock" FontWeight="SemiBold" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
+                            <Grid Grid.Row="1">
+                                <Image x:Name="SecondaryImagePreview" Stretch="Uniform" Visibility="Collapsed" />
+                                <TextBox x:Name="SecondaryTextPreview" Visibility="Collapsed" FontFamily="Consolas" FontSize="13" IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+                                <MediaElement x:Name="SecondaryMediaPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop" />
+                                <wv2:WebView2 x:Name="SecondaryPdfPreview" Visibility="Collapsed" />
+                                <TextBlock x:Name="SecondaryUnavailableText" Visibility="Collapsed" FontSize="14" TextWrapping="Wrap" />
+                            </Grid>
+                        </Grid>
+                    </Border>
                 </Grid>
             </TabItem>
             <TabItem Header="Properties">

@@ -133,6 +133,7 @@
                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Refresh" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="RefreshButton_OnClick" AutomationProperties.Name="Refresh file lists" />
                     <Button Content="Preview Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="145" Click="PreviewSelectedButton_OnClick" AutomationProperties.Name="Preview selected item" />
+                    <Button Content="Compare Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="150" Click="CompareSelectedButton_OnClick" AutomationProperties.Name="Compare two selected files" />
                     <Button Content="Copy -> Destination" Padding="14,8" Margin="0,0,8,0" MinWidth="165" Click="CopyToDestinationButton_OnClick" AutomationProperties.Name="Copy selected source items to destination" />
                     <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
                     <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
@@ -180,9 +181,9 @@
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Bottom" BorderBrush="#FFE2E2E2" BorderThickness="0,1,0,0" Padding="8" Background="#FFFFFFFF" Visibility="Collapsed">
+        <Border DockPanel.Dock="Bottom" BorderBrush="#FFE2E2E2" BorderThickness="0,1,0,0" Padding="8" Background="#FFFFFFFF">
             <ListBox x:Name="ShortcutListBox"
-                     Height="68"
+                     Height="112"
                      FontSize="14"
                      HorizontalContentAlignment="Stretch"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -191,18 +192,38 @@
                      AllowDrop="True"
                      DragOver="ShortcutListBox_OnDragOver"
                      Drop="ShortcutListBox_OnDrop"
+                     PreviewMouseRightButtonDown="ShortcutListBox_OnPreviewMouseRightButtonDown"
                      MouseDoubleClick="ShortcutListBox_OnMouseDoubleClick">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" />
+                        <WrapPanel Orientation="Horizontal" />
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Width" Value="92" />
+                        <Setter Property="Height" Value="94" />
+                        <Setter Property="Margin" Value="4" />
+                        <Setter Property="Padding" Value="4" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                        <Setter Property="ContextMenu">
+                            <Setter.Value>
+                                <ContextMenu>
+                                    <MenuItem Header="Rename Shortcut" Click="ShortcutRenameMenuItem_OnClick" />
+                                    <MenuItem Header="Open" Click="OpenShortcutButton_OnClick" />
+                                    <MenuItem Header="Remove" Click="RemoveShortcutButton_OnClick" />
+                                </ContextMenu>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,8,0" Padding="10,6" BorderBrush="#FFD7E2F2" BorderThickness="1" CornerRadius="8" Background="#FFFFFFFF">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF203352" />
+                        <Border Padding="6" CornerRadius="8" BorderBrush="#FFD7E2F2" BorderThickness="1" Background="#FFFFFFFF">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Image Source="{Binding Icon}" Width="48" Height="48" Margin="0,0,0,6" Stretch="Uniform" />
+                                <TextBlock Text="{Binding Label}" Width="80" TextAlignment="Center" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" FontSize="12" FontWeight="SemiBold" Foreground="#FF203352" />
                             </StackPanel>
                         </Border>
                     </DataTemplate>
