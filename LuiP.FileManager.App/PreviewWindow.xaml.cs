@@ -30,28 +30,38 @@ public partial class PreviewWindow : Window
 
     private async Task LoadPreviewAsync()
     {
-        var renderVersion = ++_renderVersion;
-        var compareMode = !string.IsNullOrWhiteSpace(_secondaryPath);
-
-        HeaderTextBlock.Text = compareMode
-            ? $"Compare: {_primaryPath}  |  {_secondaryPath}"
-            : _primaryPath;
-
-        PropertiesText.Text = compareMode
-            ? $"Primary:\n{BuildProperties(_primaryPath)}\n\nSecondary:\n{BuildProperties(_secondaryPath!)}"
-            : BuildProperties(_primaryPath);
-
-        SetCompareLayout(compareMode);
-
-        await RenderPaneAsync(_primaryPath, PrimaryTitleTextBlock, PrimaryImagePreview, PrimaryTextPreview, PrimaryMediaPreview, PrimaryPdfPreview, PrimaryUnavailableText, renderVersion).ConfigureAwait(true);
-        if (compareMode)
+        try
         {
-            await RenderPaneAsync(_secondaryPath!, SecondaryTitleTextBlock, SecondaryImagePreview, SecondaryTextPreview, SecondaryMediaPreview, SecondaryPdfPreview, SecondaryUnavailableText, renderVersion).ConfigureAwait(true);
+            var renderVersion = ++_renderVersion;
+            var compareMode = !string.IsNullOrWhiteSpace(_secondaryPath);
+
+            HeaderTextBlock.Text = compareMode
+                ? $"Compare: {_primaryPath}  |  {_secondaryPath}"
+                : _primaryPath;
+
+            PropertiesText.Text = compareMode
+                ? $"Primary:\n{BuildProperties(_primaryPath)}\n\nSecondary:\n{BuildProperties(_secondaryPath!)}"
+                : BuildProperties(_primaryPath);
+
+            SetCompareLayout(compareMode);
+
+            await RenderPaneAsync(_primaryPath, PrimaryTitleTextBlock, PrimaryImagePreview, PrimaryTextPreview, PrimaryMediaPreview, PrimaryPdfPreview, PrimaryUnavailableText, renderVersion).ConfigureAwait(true);
+            if (compareMode)
+            {
+                await RenderPaneAsync(_secondaryPath!, SecondaryTitleTextBlock, SecondaryImagePreview, SecondaryTextPreview, SecondaryMediaPreview, SecondaryPdfPreview, SecondaryUnavailableText, renderVersion).ConfigureAwait(true);
+            }
+            else
+            {
+                HidePane(SecondaryImagePreview, SecondaryTextPreview, SecondaryMediaPreview, SecondaryPdfPreview, SecondaryUnavailableText);
+                SecondaryTitleTextBlock.Text = string.Empty;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            HidePane(SecondaryImagePreview, SecondaryTextPreview, SecondaryMediaPreview, SecondaryPdfPreview, SecondaryUnavailableText);
-            SecondaryTitleTextBlock.Text = string.Empty;
+            PrimaryTitleTextBlock.Text = _primaryPath;
+            HidePane(PrimaryImagePreview, PrimaryTextPreview, PrimaryMediaPreview, PrimaryPdfPreview, PrimaryUnavailableText);
+            PrimaryUnavailableText.Visibility = Visibility.Visible;
+            PrimaryUnavailableText.Text = $"Preview failed to load: {ex.Message}";
         }
     }
 
@@ -155,7 +165,10 @@ public partial class PreviewWindow : Window
         mediaPreview.Source = null;
         mediaPreview.Visibility = Visibility.Collapsed;
         pdfPreview.Visibility = Visibility.Collapsed;
-        pdfPreview.Source = null;
+        if (pdfPreview.CoreWebView2 is not null)
+        {
+            pdfPreview.CoreWebView2.Navigate("about:blank");
+        }
         unavailableText.Visibility = Visibility.Collapsed;
         unavailableText.Text = string.Empty;
     }

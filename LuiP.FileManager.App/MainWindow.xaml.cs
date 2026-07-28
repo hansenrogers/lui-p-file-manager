@@ -1400,13 +1400,43 @@ public partial class MainWindow : Window
     private void CompareSelectedButton_OnClick(object sender, RoutedEventArgs e)
     {
         var selectedFiles = GetActiveSelectedPreviewFiles();
-        if (selectedFiles.Count < 2)
+        if (selectedFiles.Count == 0)
         {
-            MessageBox.Show(this, "Select two files to compare.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "Select a file from Source Items or Destination Items first.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        OpenOrReusePreviewWindow(selectedFiles[0], selectedFiles[1]);
+        var primaryPath = selectedFiles[0];
+        var secondaryPath = PickCompareFilePath(primaryPath, selectedFiles.Count > 1 ? selectedFiles[1] : null);
+        if (string.IsNullOrWhiteSpace(secondaryPath))
+        {
+            return;
+        }
+
+        OpenOrReusePreviewWindow(primaryPath, secondaryPath);
+    }
+
+    private string? PickCompareFilePath(string primaryPath, string? fallbackPath)
+    {
+        var initialDirectory = File.Exists(primaryPath)
+            ? Path.GetDirectoryName(primaryPath)
+            : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Select file to compare with",
+            CheckFileExists = true,
+            Multiselect = false,
+            InitialDirectory = initialDirectory,
+            FileName = string.Empty
+        };
+
+        if (dialog.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(dialog.FileName))
+        {
+            return dialog.FileName;
+        }
+
+        return fallbackPath;
     }
 
     private void OpenOrReusePreviewWindow(string primaryPath, string? secondaryPath = null)
