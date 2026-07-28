@@ -1399,15 +1399,21 @@ public partial class MainWindow : Window
 
     private void CompareSelectedButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var selectedFiles = GetActiveSelectedPreviewFiles();
+        var selectedFiles = GetSelectedFilesForCompare();
         if (selectedFiles.Count == 0)
         {
             MessageBox.Show(this, "Select a file from Source Items or Destination Items first.", "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
+        if (selectedFiles.Count >= 2)
+        {
+            OpenOrReusePreviewWindow(selectedFiles[0], selectedFiles[1]);
+            return;
+        }
+
         var primaryPath = selectedFiles[0];
-        var secondaryPath = PickCompareFilePath(primaryPath, selectedFiles.Count > 1 ? selectedFiles[1] : null);
+        var secondaryPath = PickCompareFilePath(primaryPath);
         if (string.IsNullOrWhiteSpace(secondaryPath))
         {
             return;
@@ -1416,7 +1422,7 @@ public partial class MainWindow : Window
         OpenOrReusePreviewWindow(primaryPath, secondaryPath);
     }
 
-    private string? PickCompareFilePath(string primaryPath, string? fallbackPath)
+    private string? PickCompareFilePath(string primaryPath)
     {
         var initialDirectory = File.Exists(primaryPath)
             ? Path.GetDirectoryName(primaryPath)
@@ -1436,7 +1442,54 @@ public partial class MainWindow : Window
             return dialog.FileName;
         }
 
-        return fallbackPath;
+        return null;
+    }
+
+    private List<string> GetSelectedFilesForCompare()
+    {
+        var sourceSelected = GetSelectedSourcePaths()
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var destinationSelected = GetSelectedDestinationPaths()
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var selected = new List<string>(2);
+
+        if (sourceSelected.Count >= 2)
+        {
+            selected.Add(sourceSelected[0]);
+            selected.Add(sourceSelected[1]);
+            return selected;
+        }
+
+        if (sourceSelected.Count == 1)
+        {
+            selected.Add(sourceSelected[0]);
+            if (destinationSelected.Count > 0)
+            {
+                selected.Add(destinationSelected[0]);
+            }
+
+            return selected;
+        }
+
+        if (destinationSelected.Count >= 2)
+        {
+            selected.Add(destinationSelected[0]);
+            selected.Add(destinationSelected[1]);
+            return selected;
+        }
+
+        if (destinationSelected.Count == 1)
+        {
+            selected.Add(destinationSelected[0]);
+        }
+
+        return selected;
     }
 
     private void OpenOrReusePreviewWindow(string primaryPath, string? secondaryPath = null)

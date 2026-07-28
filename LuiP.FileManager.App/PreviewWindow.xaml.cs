@@ -71,6 +71,7 @@ public partial class PreviewWindow : Window
         CompareRightColumn.Width = compareMode ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         CompareSplitter.Visibility = compareMode ? Visibility.Visible : Visibility.Collapsed;
         SecondaryPaneBorder.Visibility = compareMode ? Visibility.Visible : Visibility.Collapsed;
+        ReplaceSecondaryButton.Visibility = compareMode ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async Task RenderPaneAsync(
@@ -297,6 +298,52 @@ public partial class PreviewWindow : Window
     private void SingleViewButton_OnClick(object sender, RoutedEventArgs e)
     {
         SetPaths(_primaryPath, comparePath: null);
+    }
+
+    private void ReplacePrimaryButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var picked = BrowseForReplacement(_primaryPath, "Replace left file");
+        if (string.IsNullOrWhiteSpace(picked))
+        {
+            return;
+        }
+
+        SetPaths(picked, _secondaryPath);
+    }
+
+    private void ReplaceSecondaryButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_secondaryPath))
+        {
+            return;
+        }
+
+        var picked = BrowseForReplacement(_secondaryPath, "Replace right file");
+        if (string.IsNullOrWhiteSpace(picked))
+        {
+            return;
+        }
+
+        SetPaths(_primaryPath, picked);
+    }
+
+    private string? BrowseForReplacement(string currentPath, string title)
+    {
+        var initialDirectory = File.Exists(currentPath)
+            ? Path.GetDirectoryName(currentPath)
+            : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        var dialog = new OpenFileDialog
+        {
+            Title = title,
+            CheckFileExists = true,
+            Multiselect = false,
+            InitialDirectory = initialDirectory
+        };
+
+        return dialog.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(dialog.FileName)
+            ? dialog.FileName
+            : null;
     }
 
     public static void OpenPathWithShell(string path)

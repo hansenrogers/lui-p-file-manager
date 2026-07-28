@@ -39,6 +39,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock x:Name="PrimaryTitleTextBlock" FontWeight="SemiBold" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
                             <Grid Grid.Row="1">
@@ -48,6 +49,13 @@
                                 <wv2:WebView2 x:Name="PrimaryPdfPreview" Visibility="Collapsed" />
                                 <TextBlock x:Name="PrimaryUnavailableText" Visibility="Collapsed" FontSize="14" TextWrapping="Wrap" />
                             </Grid>
+                            <Button x:Name="ReplacePrimaryButton"
+                                    Grid.Row="2"
+                                    Content="Replace This File..."
+                                    HorizontalAlignment="Right"
+                                    Margin="0,8,0,0"
+                                    Padding="10,6"
+                                    Click="ReplacePrimaryButton_OnClick" />
                         </Grid>
                     </Border>
 
@@ -65,6 +73,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock x:Name="SecondaryTitleTextBlock" FontWeight="SemiBold" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
                             <Grid Grid.Row="1">
@@ -74,6 +83,13 @@
                                 <wv2:WebView2 x:Name="SecondaryPdfPreview" Visibility="Collapsed" />
                                 <TextBlock x:Name="SecondaryUnavailableText" Visibility="Collapsed" FontSize="14" TextWrapping="Wrap" />
                             </Grid>
+                            <Button x:Name="ReplaceSecondaryButton"
+                                    Grid.Row="2"
+                                    Content="Replace This File..."
+                                    HorizontalAlignment="Right"
+                                    Margin="0,8,0,0"
+                                    Padding="10,6"
+                                    Click="ReplaceSecondaryButton_OnClick" />
                         </Grid>
                     </Border>
                 </Grid>
