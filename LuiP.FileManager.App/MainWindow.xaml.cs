@@ -1325,24 +1325,43 @@ public partial class MainWindow : Window
 
     private async void DeleteSelectedButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var sourceLocation = GetSelectedSourceLocation();
-        if (sourceLocation is null)
-        {
-            MessageBox.Show(this, "Select a source location first.", "Delete", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
+        var sourceSelectedPaths = GetSelectedSourcePaths();
+        var destinationSelectedPaths = GetSelectedDestinationPaths();
 
-        if (SourceItemListView.SelectedItems.Count == 0)
+        var deleteFromSource = SourceItemListView.IsKeyboardFocusWithin
+            ? sourceSelectedPaths.Count > 0
+            : DestinationItemListView.IsKeyboardFocusWithin
+                ? false
+                : sourceSelectedPaths.Count > 0;
+
+        IReadOnlyList<string> selectedFullPaths;
+        ConfiguredLocation? selectedLocation;
+
+        if (deleteFromSource)
+        {
+            selectedFullPaths = sourceSelectedPaths;
+            selectedLocation = GetSelectedSourceLocation();
+        }
+        else if (destinationSelectedPaths.Count > 0)
+        {
+            selectedFullPaths = destinationSelectedPaths;
+            selectedLocation = GetSelectedDestinationLocation();
+        }
+        else
         {
             MessageBox.Show(this, "Select one or more items to delete.", "Delete", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var selectedFullPaths = GetSelectedSourcePaths();
+        if (selectedLocation is null)
+        {
+            MessageBox.Show(this, "Select a source or destination location first.", "Delete", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
 
         var totalBytes = TryComputeTotalBytes(selectedFullPaths);
 
-        var confirmation = new DeleteConfirmationWindow(sourceLocation.Path, selectedFullPaths.Count, totalBytes)
+        var confirmation = new DeleteConfirmationWindow(selectedLocation.Path, selectedFullPaths.Count, totalBytes)
         {
             Owner = this
         };
