@@ -3058,6 +3058,41 @@ public partial class MainWindow : Window
         item.Focus();
     }
 
+    private void ShortcutListBox_OnPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var item = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (item is null)
+        {
+            return;
+        }
+
+        item.IsSelected = true;
+        item.Focus();
+
+        if (GetSelectedShortcut() is null)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = item,
+            Placement = PlacementMode.MousePoint
+        };
+
+        menu.Items.Add(new MenuItem { Header = "Rename Shortcut" });
+        ((MenuItem)menu.Items[0]).Click += ShortcutRenameMenuItem_OnClick;
+
+        menu.Items.Add(new MenuItem { Header = "Open" });
+        ((MenuItem)menu.Items[1]).Click += OpenShortcutButton_OnClick;
+
+        menu.Items.Add(new MenuItem { Header = "Remove" });
+        ((MenuItem)menu.Items[2]).Click += RemoveShortcutButton_OnClick;
+
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
     private void ShortcutRenameMenuItem_OnClick(object sender, RoutedEventArgs e)
     {
         var shortcut = GetSelectedShortcut();

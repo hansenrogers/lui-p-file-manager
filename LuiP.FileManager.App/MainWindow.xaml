@@ -193,6 +193,7 @@
                      DragOver="ShortcutListBox_OnDragOver"
                      Drop="ShortcutListBox_OnDrop"
                      PreviewMouseRightButtonDown="ShortcutListBox_OnPreviewMouseRightButtonDown"
+                     PreviewMouseRightButtonUp="ShortcutListBox_OnPreviewMouseRightButtonUp"
                      MouseDoubleClick="ShortcutListBox_OnMouseDoubleClick">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -207,15 +208,6 @@
                         <Setter Property="Padding" Value="4" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
-                        <Setter Property="ContextMenu">
-                            <Setter.Value>
-                                <ContextMenu>
-                                    <MenuItem Header="Rename Shortcut" Click="ShortcutRenameMenuItem_OnClick" />
-                                    <MenuItem Header="Open" Click="OpenShortcutButton_OnClick" />
-                                    <MenuItem Header="Remove" Click="RemoveShortcutButton_OnClick" />
-                                </ContextMenu>
-                            </Setter.Value>
-                        </Setter>
                     </Style>
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
