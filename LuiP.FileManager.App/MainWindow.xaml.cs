@@ -61,6 +61,12 @@ public partial class MainWindow : Window
     private readonly List<ConfiguredLocation> _destinationLocations = new();
     private readonly Dictionary<string, ConfiguredLocation> _sourceLocationById = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ConfiguredLocation> _destinationLocationById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _sourceCurrentPathByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _destinationCurrentPathByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ItemSortMode> _sourceSortModeByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ItemSortMode> _destinationSortModeByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateFilterPreset> _sourceDateFilterByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateFilterPreset> _destinationDateFilterByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _sourcePathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _destinationPathByDisplay = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ShortcutItem> _shortcutById = new(StringComparer.Ordinal);
@@ -90,7 +96,11 @@ public partial class MainWindow : Window
     private bool _hasStartedAutoIndex;
     private bool _isUiInitialized;
     private bool _startupInitialized;
+    private bool _isApplyingSavedLocationState;
+    private string? _activeSourceLocationId;
+    private string? _activeDestinationLocationId;
     private TimeSpan? _lastIndexDuration;
+    private UiState? _loadedUiState;
 
     public MainWindow()
     {
@@ -131,6 +141,7 @@ public partial class MainWindow : Window
             ConfigureIndexWatchers();
             RefreshShortcuts();
             _isUiInitialized = true;
+            ApplySelectedLocationStateFromCurrentSelection();
             ApplyColumnVisibility();
             RefreshAllViews();
             UpdateTransferContextBar();
@@ -148,6 +159,12 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        _loadedUiState = state;
+
+        _sourceShowModifiedColumn = state.SourceShowModifiedColumn;
+        _destinationShowModifiedColumn = state.DestinationShowModifiedColumn;
+        LoadLocationViewDictionaries(state);
 
         if (double.IsNaN(state.Left) || double.IsNaN(state.Top) || double.IsNaN(state.Width) || double.IsNaN(state.Height))
         {
@@ -213,16 +230,114 @@ public partial class MainWindow : Window
 
     private void SaveUiState()
     {
+        CaptureActiveLocationViewState();
+
         var state = new UiState
         {
             Width = Width,
             Height = Height,
             Left = Left,
             Top = Top,
-            IsMaximized = WindowState == WindowState.Maximized
+            IsMaximized = WindowState == WindowState.Maximized,
+            SelectedSourceLocationId = GetSelectedSourceLocation()?.Id,
+            SelectedDestinationLocationId = GetSelectedDestinationLocation()?.Id,
+            SourceShowModifiedColumn = _sourceShowModifiedColumn,
+            DestinationShowModifiedColumn = _destinationShowModifiedColumn,
+            SourceLocationViews = BuildLocationViewStateList(
+                _sourceLocations,
+                _sourceCurrentPathByLocationId,
+                _sourceSortModeByLocationId,
+                _sourceDateFilterByLocationId),
+            DestinationLocationViews = BuildLocationViewStateList(
+                _destinationLocations,
+                _destinationCurrentPathByLocationId,
+                _destinationSortModeByLocationId,
+                _destinationDateFilterByLocationId)
         };
 
         _uiStateStore.Save(state);
+    }
+
+    private void LoadLocationViewDictionaries(UiState state)
+    {
+        _sourceCurrentPathByLocationId.Clear();
+        _destinationCurrentPathByLocationId.Clear();
+        _sourceSortModeByLocationId.Clear();
+        _destinationSortModeByLocationId.Clear();
+        _sourceDateFilterByLocationId.Clear();
+        _destinationDateFilterByLocationId.Clear();
+
+        foreach (var row in state.SourceLocationViews)
+        {
+            if (string.IsNullOrWhiteSpace(row.LocationId))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.CurrentPath))
+            {
+                _sourceCurrentPathByLocationId[row.LocationId] = row.CurrentPath;
+            }
+
+            _sourceSortModeByLocationId[row.LocationId] = ParseSortMode(row.SortMode);
+            _sourceDateFilterByLocationId[row.LocationId] = ParseDateFilter(row.DateFilter);
+        }
+
+        foreach (var row in state.DestinationLocationViews)
+        {
+            if (string.IsNullOrWhiteSpace(row.LocationId))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.CurrentPath))
+            {
+                _destinationCurrentPathByLocationId[row.LocationId] = row.CurrentPath;
+            }
+
+            _destinationSortModeByLocationId[row.LocationId] = ParseSortMode(row.SortMode);
+            _destinationDateFilterByLocationId[row.LocationId] = ParseDateFilter(row.DateFilter);
+        }
+    }
+
+    private static List<LocationViewState> BuildLocationViewStateList(
+        IEnumerable<ConfiguredLocation> locations,
+        IReadOnlyDictionary<string, string> pathMap,
+        IReadOnlyDictionary<string, ItemSortMode> sortMap,
+        IReadOnlyDictionary<string, DateFilterPreset> filterMap)
+    {
+        var rows = new List<LocationViewState>();
+
+        foreach (var location in locations)
+        {
+            pathMap.TryGetValue(location.Id, out var path);
+            sortMap.TryGetValue(location.Id, out var sortMode);
+            filterMap.TryGetValue(location.Id, out var dateFilter);
+
+            rows.Add(new LocationViewState
+            {
+                LocationId = location.Id,
+                CurrentPath = path,
+                SortMode = (int)sortMode,
+                DateFilter = (int)dateFilter
+            });
+        }
+
+        return rows;
+    }
+
+    private static ItemSortMode ParseSortMode(int raw)
+    {
+        return Enum.IsDefined(typeof(ItemSortMode), raw)
+            ? (ItemSortMode)raw
+            : ItemSortMode.NameAscending;
+    }
+
+    private static DateFilterPreset ParseDateFilter(int raw)
+    {
+        return Enum.IsDefined(typeof(DateFilterPreset), raw)
+            ? (DateFilterPreset)raw
+            : DateFilterPreset.AllDates;
     }
 
     private void ApplyAppPreferences()
@@ -276,15 +391,63 @@ public partial class MainWindow : Window
         SourceLocationListView.ItemsSource = sourceItems;
         DestinationLocationListView.ItemsSource = destinationItems;
 
-        if (SourceLocationListView.Items.Count > 0)
+        PruneStaleLocationViewState();
+
+        var restoredSourceId = _loadedUiState?.SelectedSourceLocationId;
+        var restoredDestinationId = _loadedUiState?.SelectedDestinationLocationId;
+
+        if (SourceLocationListView.Items.Count > 0 && !SelectLocationById(SourceLocationListView, restoredSourceId))
         {
             SourceLocationListView.SelectedIndex = 0;
         }
 
-        if (DestinationLocationListView.Items.Count > 0)
+        if (DestinationLocationListView.Items.Count > 0 && !SelectLocationById(DestinationLocationListView, restoredDestinationId))
         {
             DestinationLocationListView.SelectedIndex = 0;
         }
+    }
+
+    private void PruneStaleLocationViewState()
+    {
+        var sourceIds = _sourceLocations.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+        var destinationIds = _destinationLocations.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+
+        RemoveStaleKeys(_sourceCurrentPathByLocationId, sourceIds);
+        RemoveStaleKeys(_sourceSortModeByLocationId, sourceIds);
+        RemoveStaleKeys(_sourceDateFilterByLocationId, sourceIds);
+
+        RemoveStaleKeys(_destinationCurrentPathByLocationId, destinationIds);
+        RemoveStaleKeys(_destinationSortModeByLocationId, destinationIds);
+        RemoveStaleKeys(_destinationDateFilterByLocationId, destinationIds);
+    }
+
+    private static void RemoveStaleKeys<T>(Dictionary<string, T> map, IReadOnlySet<string> validIds)
+    {
+        var stale = map.Keys.Where(id => !validIds.Contains(id)).ToList();
+        foreach (var id in stale)
+        {
+            map.Remove(id);
+        }
+    }
+
+    private static bool SelectLocationById(System.Windows.Controls.ListView listView, string? locationId)
+    {
+        if (string.IsNullOrWhiteSpace(locationId))
+        {
+            return false;
+        }
+
+        var row = listView.Items
+            .OfType<LocationListItem>()
+            .FirstOrDefault(item => string.Equals(item.Id, locationId, StringComparison.Ordinal));
+
+        if (row is null)
+        {
+            return false;
+        }
+
+        listView.SelectedItem = row;
+        return true;
     }
 
     private void EnsureDefaultLocationsIfNeeded()
@@ -362,6 +525,11 @@ public partial class MainWindow : Window
             _currentSourcePath = selectedRoot;
         }
 
+        if (!string.IsNullOrWhiteSpace(_activeSourceLocationId))
+        {
+            _sourceCurrentPathByLocationId[_activeSourceLocationId] = _currentSourcePath;
+        }
+
         UpdateSourceNavigationUi(selectedRoot, _currentSourcePath);
 
         var query = SourceSearchTextBox.Text?.Trim() ?? string.Empty;
@@ -418,6 +586,11 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(_currentDestinationPath) || !Directory.Exists(_currentDestinationPath) || !IsPathWithinRoot(_currentDestinationPath, selectedRoot))
         {
             _currentDestinationPath = selectedRoot;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_activeDestinationLocationId))
+        {
+            _destinationCurrentPathByLocationId[_activeDestinationLocationId] = _currentDestinationPath;
         }
 
         UpdateDestinationNavigationUi(selectedRoot, _currentDestinationPath);
@@ -556,23 +729,31 @@ public partial class MainWindow : Window
 
     private void SourceDateFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (!_isUiInitialized)
+        if (!_isUiInitialized || _isApplyingSavedLocationState)
         {
             return;
         }
 
         _sourceDateFilter = ParseDateFilterPreset(SourceDateFilterComboBox.SelectedIndex);
+        if (!string.IsNullOrWhiteSpace(_activeSourceLocationId))
+        {
+            _sourceDateFilterByLocationId[_activeSourceLocationId] = _sourceDateFilter;
+        }
         RefreshSourceItems();
     }
 
     private void DestinationDateFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (!_isUiInitialized)
+        if (!_isUiInitialized || _isApplyingSavedLocationState)
         {
             return;
         }
 
         _destinationDateFilter = ParseDateFilterPreset(DestinationDateFilterComboBox.SelectedIndex);
+        if (!string.IsNullOrWhiteSpace(_activeDestinationLocationId))
+        {
+            _destinationDateFilterByLocationId[_activeDestinationLocationId] = _destinationDateFilter;
+        }
         RefreshDestinationItems();
     }
 
@@ -608,6 +789,11 @@ public partial class MainWindow : Window
                 break;
             default:
                 return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_activeSourceLocationId))
+        {
+            _sourceSortModeByLocationId[_activeSourceLocationId] = _sourceSortMode;
         }
 
         RefreshSourceItems();
@@ -647,6 +833,11 @@ public partial class MainWindow : Window
                 return;
         }
 
+        if (!string.IsNullOrWhiteSpace(_activeDestinationLocationId))
+        {
+            _destinationSortModeByLocationId[_activeDestinationLocationId] = _destinationSortMode;
+        }
+
         RefreshDestinationItems();
     }
 
@@ -660,6 +851,146 @@ public partial class MainWindow : Window
             4 => DateFilterPreset.ThisYear,
             _ => DateFilterPreset.AllDates
         };
+    }
+
+    private static int ToDateFilterIndex(DateFilterPreset preset)
+    {
+        return preset switch
+        {
+            DateFilterPreset.Today => 1,
+            DateFilterPreset.Last7Days => 2,
+            DateFilterPreset.Last30Days => 3,
+            DateFilterPreset.ThisYear => 4,
+            _ => 0
+        };
+    }
+
+    private void ApplySourceDateFilterSelection()
+    {
+        if (SourceDateFilterComboBox is null)
+        {
+            return;
+        }
+
+        _isApplyingSavedLocationState = true;
+        try
+        {
+            SourceDateFilterComboBox.SelectedIndex = ToDateFilterIndex(_sourceDateFilter);
+        }
+        finally
+        {
+            _isApplyingSavedLocationState = false;
+        }
+    }
+
+    private void ApplyDestinationDateFilterSelection()
+    {
+        if (DestinationDateFilterComboBox is null)
+        {
+            return;
+        }
+
+        _isApplyingSavedLocationState = true;
+        try
+        {
+            DestinationDateFilterComboBox.SelectedIndex = ToDateFilterIndex(_destinationDateFilter);
+        }
+        finally
+        {
+            _isApplyingSavedLocationState = false;
+        }
+    }
+
+    private static string ResolveStoredPath(IReadOnlyDictionary<string, string> map, string locationId, string fallbackRoot)
+    {
+        if (map.TryGetValue(locationId, out var storedPath)
+            && !string.IsNullOrWhiteSpace(storedPath)
+            && Directory.Exists(storedPath)
+            && IsPathWithinRoot(storedPath, fallbackRoot))
+        {
+            return storedPath;
+        }
+
+        return fallbackRoot;
+    }
+
+    private void SaveSourceViewStateForActiveLocation()
+    {
+        if (string.IsNullOrWhiteSpace(_activeSourceLocationId))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentSourcePath))
+        {
+            _sourceCurrentPathByLocationId[_activeSourceLocationId] = _currentSourcePath;
+        }
+
+        _sourceSortModeByLocationId[_activeSourceLocationId] = _sourceSortMode;
+        _sourceDateFilterByLocationId[_activeSourceLocationId] = _sourceDateFilter;
+    }
+
+    private void SaveDestinationViewStateForActiveLocation()
+    {
+        if (string.IsNullOrWhiteSpace(_activeDestinationLocationId))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentDestinationPath))
+        {
+            _destinationCurrentPathByLocationId[_activeDestinationLocationId] = _currentDestinationPath;
+        }
+
+        _destinationSortModeByLocationId[_activeDestinationLocationId] = _destinationSortMode;
+        _destinationDateFilterByLocationId[_activeDestinationLocationId] = _destinationDateFilter;
+    }
+
+    private void CaptureActiveLocationViewState()
+    {
+        SaveSourceViewStateForActiveLocation();
+        SaveDestinationViewStateForActiveLocation();
+    }
+
+    private void ApplySelectedLocationStateFromCurrentSelection()
+    {
+        var source = GetSelectedSourceLocation();
+        _activeSourceLocationId = source?.Id;
+        if (source is not null)
+        {
+            _sourceSortMode = _sourceSortModeByLocationId.TryGetValue(source.Id, out var storedSort)
+                ? storedSort
+                : ItemSortMode.NameAscending;
+            _sourceDateFilter = _sourceDateFilterByLocationId.TryGetValue(source.Id, out var storedFilter)
+                ? storedFilter
+                : DateFilterPreset.AllDates;
+            _currentSourcePath = ResolveStoredPath(_sourceCurrentPathByLocationId, source.Id, source.Path);
+            ApplySourceDateFilterSelection();
+            if (SelectedSourceRootTextBlock is not null)
+            {
+                SelectedSourceRootTextBlock.Text = $"Selected: {source.Name}";
+                SelectedSourceRootTextBlock.ToolTip = source.Path;
+            }
+        }
+
+        var destination = GetSelectedDestinationLocation();
+        _activeDestinationLocationId = destination?.Id;
+        if (destination is not null)
+        {
+            _destinationSortMode = _destinationSortModeByLocationId.TryGetValue(destination.Id, out var storedSort)
+                ? storedSort
+                : ItemSortMode.NameAscending;
+            _destinationDateFilter = _destinationDateFilterByLocationId.TryGetValue(destination.Id, out var storedFilter)
+                ? storedFilter
+                : DateFilterPreset.AllDates;
+            _currentDestinationPath = ResolveStoredPath(_destinationCurrentPathByLocationId, destination.Id, destination.Path);
+            ApplyDestinationDateFilterSelection();
+            if (SelectedDestinationRootTextBlock is not null)
+            {
+                SelectedDestinationRootTextBlock.Text = $"Selected: {destination.Name}";
+                SelectedDestinationRootTextBlock.ToolTip = destination.Path;
+            }
+        }
     }
 
     private static IEnumerable<IndexedSearchResult> SortSearchResults(IEnumerable<IndexedSearchResult> results, ItemSortMode sortMode)
@@ -752,8 +1083,27 @@ public partial class MainWindow : Window
             return;
         }
 
+        SaveSourceViewStateForActiveLocation();
+
         var selected = GetSelectedSourceLocation();
-        _currentSourcePath = selected?.Path;
+        if (selected is not null)
+        {
+            _activeSourceLocationId = selected.Id;
+            _sourceSortMode = _sourceSortModeByLocationId.TryGetValue(selected.Id, out var storedSortMode)
+                ? storedSortMode
+                : ItemSortMode.NameAscending;
+            _sourceDateFilter = _sourceDateFilterByLocationId.TryGetValue(selected.Id, out var storedFilter)
+                ? storedFilter
+                : DateFilterPreset.AllDates;
+            _currentSourcePath = ResolveStoredPath(_sourceCurrentPathByLocationId, selected.Id, selected.Path);
+            ApplySourceDateFilterSelection();
+        }
+        else
+        {
+            _activeSourceLocationId = null;
+            _currentSourcePath = null;
+        }
+
         if (SelectedSourceRootTextBlock is not null)
         {
             SelectedSourceRootTextBlock.Text = selected is null
@@ -772,8 +1122,27 @@ public partial class MainWindow : Window
             return;
         }
 
+        SaveDestinationViewStateForActiveLocation();
+
         var selected = GetSelectedDestinationLocation();
-        _currentDestinationPath = selected?.Path;
+        if (selected is not null)
+        {
+            _activeDestinationLocationId = selected.Id;
+            _destinationSortMode = _destinationSortModeByLocationId.TryGetValue(selected.Id, out var storedSortMode)
+                ? storedSortMode
+                : ItemSortMode.NameAscending;
+            _destinationDateFilter = _destinationDateFilterByLocationId.TryGetValue(selected.Id, out var storedFilter)
+                ? storedFilter
+                : DateFilterPreset.AllDates;
+            _currentDestinationPath = ResolveStoredPath(_destinationCurrentPathByLocationId, selected.Id, selected.Path);
+            ApplyDestinationDateFilterSelection();
+        }
+        else
+        {
+            _activeDestinationLocationId = null;
+            _currentDestinationPath = null;
+        }
+
         if (SelectedDestinationRootTextBlock is not null)
         {
             SelectedDestinationRootTextBlock.Text = selected is null
@@ -960,6 +1329,10 @@ public partial class MainWindow : Window
         if (Directory.Exists(path))
         {
             _currentSourcePath = path;
+            if (!string.IsNullOrWhiteSpace(_activeSourceLocationId))
+            {
+                _sourceCurrentPathByLocationId[_activeSourceLocationId] = _currentSourcePath;
+            }
             SourceSearchTextBox.Text = string.Empty;
             RefreshSourceItems();
             return;
@@ -983,6 +1356,10 @@ public partial class MainWindow : Window
         if (Directory.Exists(path))
         {
             _currentDestinationPath = path;
+            if (!string.IsNullOrWhiteSpace(_activeDestinationLocationId))
+            {
+                _destinationCurrentPathByLocationId[_activeDestinationLocationId] = _currentDestinationPath;
+            }
             DestinationSearchTextBox.Text = string.Empty;
             RefreshDestinationItems();
             return;
@@ -1000,21 +1377,6 @@ public partial class MainWindow : Window
         if (path is null)
         {
             MessageBox.Show(this, "Select a file from Source Items or Destination Items first.", "Preview", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        if (string.Equals(Path.GetExtension(path), ".pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                PreviewWindow.OpenPathWithShell(path);
-                StatusTextBlock.Text = "Opened PDF in default app.";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, $"Unable to open PDF.\n\n{ex.Message}", "Open PDF", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-
             return;
         }
 

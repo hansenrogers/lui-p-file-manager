@@ -53,4 +53,27 @@ public sealed class UiState
     public double Left { get; init; }
 
     public bool IsMaximized { get; init; }
+
+    public string? SelectedSourceLocationId { get; init; }
+
+    public string? SelectedDestinationLocationId { get; init; }
+
+    public bool SourceShowModifiedColumn { get; init; } = true;
+
+    public bool DestinationShowModifiedColumn { get; init; } = true;
+
+    public List<LocationViewState> SourceLocationViews { get; init; } = new();
+
+    public List<LocationViewState> DestinationLocationViews { get; init; } = new();
+}
+
+public sealed class LocationViewState
+{
+    public string LocationId { get; init; } = string.Empty;
+
+    public string? CurrentPath { get; init; }
+
+    public int SortMode { get; init; }
+
+    public int DateFilter { get; init; }
 }

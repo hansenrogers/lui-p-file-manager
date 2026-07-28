@@ -11,11 +11,9 @@ public partial class DeleteConfirmationWindow : Window
         InitializeComponent();
 
         LocationRun.Text = locationPath;
-        CountTextBlock.Text = $"Number of selected items: {selectedCount}";
-        SizeTextBlock.Text = totalSizeBytes.HasValue
-            ? $"Total size: {FormatBytes(totalSizeBytes.Value)}"
-            : "Total size: not available";
-        RecoveryTextBlock.Text = "Can be recovered: Yes";
+        CountTextBlock.Text = selectedCount == 1
+            ? "1 item selected"
+            : $"{selectedCount} items selected";
     }
 
     private void DeleteButton_OnClick(object sender, RoutedEventArgs e)
@@ -30,18 +28,4 @@ public partial class DeleteConfirmationWindow : Window
         DialogResult = false;
     }
 
-    private static string FormatBytes(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double value = bytes;
-        var idx = 0;
-
-        while (value >= 1024 && idx < units.Length - 1)
-        {
-            value /= 1024;
-            idx++;
-        }
-
-        return $"{value:0.##} {units[idx]}";
-    }
 }
