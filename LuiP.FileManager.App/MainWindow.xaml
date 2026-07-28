@@ -201,7 +201,7 @@
                     <DataTemplate>
                         <Border Margin="0,0,8,0" Padding="10,6" BorderBrush="#FFD7E2F2" BorderThickness="1" CornerRadius="8" Background="#FFFFFFFF">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Glyph}" FontSize="16" Width="20" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF203352" />
                             </StackPanel>
                         </Border>
@@ -302,7 +302,13 @@
                     <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" PreviewMouseRightButtonUp="SourceItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="SourceItemColumnHeader_OnClick" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
+                                <GridViewColumn Header="T" Width="34">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Image Source="{Binding TypeIcon}" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
                                 <GridViewColumn x:Name="SourceNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
                                 <GridViewColumn x:Name="SourceModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
                             </GridView>
@@ -353,7 +359,13 @@
                     <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" PreviewMouseRightButtonUp="DestinationItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="DestinationItemColumnHeader_OnClick" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
+                                <GridViewColumn Header="T" Width="34">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Image Source="{Binding TypeIcon}" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
                                 <GridViewColumn x:Name="DestinationNameColumn" Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
                                 <GridViewColumn x:Name="DestinationModifiedColumn" Header="Modified" Width="170" DisplayMemberBinding="{Binding ModifiedDisplay}" />
                             </GridView>

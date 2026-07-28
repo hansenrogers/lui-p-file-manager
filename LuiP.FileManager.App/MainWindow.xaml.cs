@@ -7,6 +7,9 @@ using System.Windows.Controls.Primitives;
 using System.Collections.Specialized;
 using System.Collections.Concurrent;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
 using LuiP.FileManager.Core.Models;
 using LuiP.FileManager.Core.Services;
 using LuiP.FileManager.App.Persistence;
@@ -26,6 +29,13 @@ public partial class MainWindow : Window
         DateModifiedNewest = 2,
         DateModifiedOldest = 3
     }
+
+    private const uint ShgfiIcon = 0x000000100;
+    private const uint ShgfiSmallIcon = 0x000000001;
+    private const uint ShgfiUseFileAttributes = 0x000000010;
+    private const uint FileAttributeDirectory = 0x00000010;
+    private const uint FileAttributeNormal = 0x00000080;
+    private static readonly ConcurrentDictionary<string, ImageSource?> ShellIconCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly IActivityLogRepository _activityLogRepository;
     private readonly IFileOperationService _fileOperationService;
@@ -482,7 +492,7 @@ public partial class MainWindow : Window
             FullPath = fullPath,
             Name = name,
             IsFolder = isFolder,
-            TypeGlyph = isFolder ? "📁" : "📄",
+            TypeIcon = GetWindowsShellIcon(fullPath, isFolder, ShortcutTargetKind.File),
             ModifiedUtc = modifiedUtc,
             ModifiedDisplay = FormatModifiedForDisplay(modifiedUtc)
         };
@@ -2474,7 +2484,7 @@ public partial class MainWindow : Window
                     Id = shortcut.Id,
                     Label = shortcut.Label,
                     FullPath = shortcut.TargetPath,
-                    Glyph = GetShortcutGlyph(shortcut.TargetKind)
+                    Icon = GetWindowsShellIcon(shortcut.TargetPath, shortcut.TargetKind == ShortcutTargetKind.Folder, shortcut.TargetKind)
                 });
             }
             catch
@@ -2484,7 +2494,7 @@ public partial class MainWindow : Window
                     Id = shortcut.Id,
                     Label = shortcut.Label,
                     FullPath = shortcut.TargetPath,
-                    Glyph = "•"
+                    Icon = GetWindowsShellIcon(shortcut.TargetPath, false, ShortcutTargetKind.File)
                 });
             }
         }
@@ -2674,15 +2684,47 @@ public partial class MainWindow : Window
             : ShortcutTargetKind.File;
     }
 
-    private static string GetShortcutGlyph(ShortcutTargetKind kind)
+    private static ImageSource? GetWindowsShellIcon(string path, bool isFolder, ShortcutTargetKind kind)
     {
-        return kind switch
+        var key = isFolder
+            ? "folder"
+            : kind == ShortcutTargetKind.Program
+                ? $"program:{path}"
+                : $"file:{Path.GetExtension(path).ToLowerInvariant()}";
+
+        return ShellIconCache.GetOrAdd(key, _ => LoadWindowsShellIcon(path, isFolder));
+    }
+
+    private static ImageSource? LoadWindowsShellIcon(string path, bool isFolder)
+    {
+        var attributes = isFolder ? FileAttributeDirectory : FileAttributeNormal;
+        var flags = ShgfiIcon | ShgfiSmallIcon | ShgfiUseFileAttributes;
+
+        var queryPath = path;
+        if (string.IsNullOrWhiteSpace(queryPath))
         {
-            ShortcutTargetKind.Folder => "📁",
-            ShortcutTargetKind.Program => "🚀",
-            ShortcutTargetKind.File => "📄",
-            _ => "•"
-        };
+            queryPath = isFolder ? "folder" : "file";
+        }
+
+        var result = SHGetFileInfo(queryPath, attributes, out var shFileInfo, (uint)Marshal.SizeOf<SHFILEINFO>(), flags);
+        if (result == IntPtr.Zero || shFileInfo.hIcon == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        try
+        {
+            var icon = Imaging.CreateBitmapSourceFromHIcon(
+                shFileInfo.hIcon,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromWidthAndHeight(16, 16));
+            icon.Freeze();
+            return icon;
+        }
+        finally
+        {
+            _ = DestroyIcon(shFileInfo.hIcon);
+        }
     }
 
     private sealed class ShortcutListItem
@@ -2693,7 +2735,7 @@ public partial class MainWindow : Window
 
         public string FullPath { get; init; } = string.Empty;
 
-        public string Glyph { get; init; } = "•";
+        public ImageSource? Icon { get; init; }
     }
 
     private string? ResolveSelectedPreviewPath()
@@ -2863,10 +2905,34 @@ public partial class MainWindow : Window
 
         public bool IsFolder { get; init; }
 
-        public string TypeGlyph { get; init; } = "•";
+        public ImageSource? TypeIcon { get; init; }
 
         public DateTimeOffset? ModifiedUtc { get; init; }
 
         public string ModifiedDisplay { get; init; } = string.Empty;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHGetFileInfo(
+        string pszPath,
+        uint dwFileAttributes,
+        out SHFILEINFO psfi,
+        uint cbFileInfo,
+        uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SHFILEINFO
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
     }
 }
