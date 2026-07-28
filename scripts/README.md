@@ -28,6 +28,29 @@ Example:
 .\scripts\install-local.ps1 -CreateDesktopShortcut -ForceCloseRunningApp
 ```
 
+## Build Transfer Installer (Other Computers)
+
+Create a copyable installer bundle and zip (self-contained app payload plus dependency-aware install scripts):
+
+```powershell
+.\scripts\create-transfer-installer.ps1 -Clean
+```
+
+Output:
+
+- `dist/LuiPFileManager-Installer/`
+- `dist/LuiPFileManager-Installer.zip`
+
+On the target computer:
+
+1. Extract `LuiPFileManager-Installer.zip`
+2. Run `Install-LuiPFileManager.ps1 -CreateDesktopShortcut -LaunchAfterInstall`
+
+Dependency behavior:
+
+- The installer checks for Microsoft Edge WebView2 Runtime.
+- If missing, it downloads and installs WebView2 automatically.
+
 ## Uninstall
 
 ```powershell
