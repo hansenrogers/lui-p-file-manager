@@ -783,19 +783,7 @@ public partial class MainWindow : Window
 
     private void SourceAddLocationButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var editor = new LocationEditorWindow(_locationRepository, LocationKind.Source)
-        {
-            Owner = this
-        };
-
-        if (editor.ShowDialog() == true)
-        {
-            InitializeLocationsFromRepository();
-            ConfigureIndexWatchers();
-            RefreshAllViews();
-            _ = EnsureIndexBuiltAsync();
-            StatusTextBlock.Text = "Source locations updated.";
-        }
+        AddLocationByBrowsing(LocationKind.Source);
     }
 
     private void SourceRemoveLocationButton_OnClick(object sender, RoutedEventArgs e)
@@ -830,19 +818,97 @@ public partial class MainWindow : Window
 
     private void DestinationAddLocationButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var editor = new LocationEditorWindow(_locationRepository, LocationKind.Destination)
+        AddLocationByBrowsing(LocationKind.Destination);
+    }
+
+    private void AddLocationByBrowsing(LocationKind kind)
+    {
+        var selected = kind == LocationKind.Source
+            ? GetSelectedSourceLocation()
+            : GetSelectedDestinationLocation();
+
+        var initialDirectory = selected?.Path;
+        if (string.IsNullOrWhiteSpace(initialDirectory) || !Directory.Exists(initialDirectory))
         {
-            Owner = this
+            initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        }
+
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = kind == LocationKind.Source ? "Select Source Folder" : "Select Destination Folder",
+            InitialDirectory = initialDirectory,
+            Multiselect = false
         };
 
-        if (editor.ShowDialog() == true)
+        if (dialog.ShowDialog(this) != true || string.IsNullOrWhiteSpace(dialog.FolderName))
         {
-            InitializeLocationsFromRepository();
-            ConfigureIndexWatchers();
-            RefreshAllViews();
-            _ = EnsureIndexBuiltAsync();
-            StatusTextBlock.Text = "Destination locations updated.";
+            return;
         }
+
+        var selectedPath = Path.GetFullPath(dialog.FolderName);
+        var existing = _locationRepository.GetByKindAsync(kind, CancellationToken.None).GetAwaiter().GetResult();
+        var existingMatch = existing.FirstOrDefault(x => PathsEqual(x.Path, selectedPath));
+
+        if (existingMatch is null)
+        {
+            var trimmed = selectedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var folderName = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(folderName))
+            {
+                folderName = selectedPath;
+            }
+
+            var newLocation = new ConfiguredLocation
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = folderName,
+                Path = selectedPath,
+                Kind = kind,
+                IsEnabled = true,
+                SortOrder = existing.Count == 0 ? 1 : existing.Max(x => x.SortOrder) + 1
+            };
+
+            _locationRepository.UpsertAsync(newLocation, CancellationToken.None).GetAwaiter().GetResult();
+            existingMatch = newLocation;
+        }
+
+        InitializeLocationsFromRepository();
+        ConfigureIndexWatchers();
+
+        var didSelect = SelectLocationByPath(kind, existingMatch.Path);
+        if (!didSelect)
+        {
+            RefreshAllViews();
+        }
+
+        _ = EnsureIndexBuiltAsync();
+        StatusTextBlock.Text = kind == LocationKind.Source
+            ? $"Source location selected: {existingMatch.Name}"
+            : $"Destination location selected: {existingMatch.Name}";
+    }
+
+    private bool SelectLocationByPath(LocationKind kind, string path)
+    {
+        if (kind == LocationKind.Source)
+        {
+            var match = _sourceLocationByDisplay.FirstOrDefault(pair => PathsEqual(pair.Value.Path, path));
+            if (!string.IsNullOrWhiteSpace(match.Key))
+            {
+                SourceLocationListView.SelectedItem = match.Key;
+                return true;
+            }
+
+            return false;
+        }
+
+        var destinationMatch = _destinationLocationByDisplay.FirstOrDefault(pair => PathsEqual(pair.Value.Path, path));
+        if (!string.IsNullOrWhiteSpace(destinationMatch.Key))
+        {
+            DestinationLocationListView.SelectedItem = destinationMatch.Key;
+            return true;
+        }
+
+        return false;
     }
 
     private void DestinationRemoveLocationButton_OnClick(object sender, RoutedEventArgs e)
