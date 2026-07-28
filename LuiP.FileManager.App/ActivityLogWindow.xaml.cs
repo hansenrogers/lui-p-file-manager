@@ -16,6 +16,7 @@ public partial class ActivityLogWindow : Window
     private readonly string _diagnosticsLogRoot;
     private IReadOnlyList<FileOperationRecord> _loadedRecords = Array.Empty<FileOperationRecord>();
     private IReadOnlyList<OperationItemRecord> _loadedItems = Array.Empty<OperationItemRecord>();
+    private bool _isInitialized;
 
     public ActivityLogWindow(
         IActivityLogRepository activityLogRepository,
@@ -32,6 +33,7 @@ public partial class ActivityLogWindow : Window
         _onOperationCompleted = onOperationCompleted;
         _retryCopyChecksumDefaults = retryCopyChecksumDefaults;
         InitializeComponent();
+        _isInitialized = true;
         UpdateOperationActionState();
         UpdateItemActionState();
         _ = LoadOperationsAsync();
@@ -64,11 +66,21 @@ public partial class ActivityLogWindow : Window
 
     private void SearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
         ApplyFilters();
     }
 
     private void StatusFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
         ApplyFilters();
     }
 
@@ -223,6 +235,11 @@ public partial class ActivityLogWindow : Window
 
     private void ApplyFilters()
     {
+        if (!_isInitialized || SearchTextBox is null || OperationsDataGrid is null || OperationItemsDataGrid is null)
+        {
+            return;
+        }
+
         var text = (SearchTextBox.Text ?? string.Empty).Trim();
         var status = GetSelectedStatusFilter();
 
