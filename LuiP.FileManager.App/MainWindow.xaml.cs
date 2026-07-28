@@ -2504,34 +2504,34 @@ public partial class MainWindow : Window
         var destination = GetSelectedDestinationLocation();
         if (destination is null)
         {
-            TransferDestinationTextBlock.Text = "No destination selected";
+            TransferDestinationTextBlock.Text = "Going To: No destination selected";
         }
         else
         {
             var effectiveDestinationPath = GetCurrentDestinationPath(destination);
-            TransferDestinationTextBlock.Text = effectiveDestinationPath;
+            TransferDestinationTextBlock.Text = $"Going To: {effectiveDestinationPath}";
         }
 
         if (SourceItemListView.SelectedItems.Count == 0)
         {
-            TransferSelectedTextBlock.Text = "None";
+            TransferSelectedTextBlock.Text = "Moving: None";
             return;
         }
 
         var sourceLocation = GetSelectedSourceLocation();
         if (sourceLocation is null)
         {
-            TransferSelectedTextBlock.Text = $"{SourceItemListView.SelectedItems.Count} item(s) selected";
+            TransferSelectedTextBlock.Text = $"Moving: {SourceItemListView.SelectedItems.Count} item(s) selected";
             return;
         }
 
         if (SourceItemListView.SelectedItems.Count == 1 && SourceItemListView.SelectedItem is FileItemRow selectedItem)
         {
-            TransferSelectedTextBlock.Text = selectedItem.FullPath;
+            TransferSelectedTextBlock.Text = $"Moving: {selectedItem.FullPath}";
             return;
         }
 
-        TransferSelectedTextBlock.Text = $"{SourceItemListView.SelectedItems.Count} item(s) selected";
+        TransferSelectedTextBlock.Text = $"Moving: {SourceItemListView.SelectedItems.Count} item(s) selected";
     }
 
     private void RefreshShortcuts()
