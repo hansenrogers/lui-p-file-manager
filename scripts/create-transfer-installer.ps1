@@ -43,6 +43,8 @@ New-Item -Path $appBundleDir -ItemType Directory -Force | Out-Null
 Copy-Item -Path (Join-Path $publishDir '*') -Destination $appBundleDir -Recurse -Force
 Copy-Item -Path (Join-Path $PSScriptRoot 'transfer-assets\Install-LuiPFileManager.ps1') -Destination (Join-Path $bundleRoot 'Install-LuiPFileManager.ps1') -Force
 Copy-Item -Path (Join-Path $PSScriptRoot 'transfer-assets\Uninstall-LuiPFileManager.ps1') -Destination (Join-Path $bundleRoot 'Uninstall-LuiPFileManager.ps1') -Force
+Copy-Item -Path (Join-Path $PSScriptRoot 'transfer-assets\Install.cmd') -Destination (Join-Path $bundleRoot 'Install.cmd') -Force
+Copy-Item -Path (Join-Path $PSScriptRoot 'transfer-assets\Uninstall.cmd') -Destination (Join-Path $bundleRoot 'Uninstall.cmd') -Force
 Copy-Item -Path (Join-Path $PSScriptRoot 'transfer-assets\README.txt') -Destination (Join-Path $bundleRoot 'README.txt') -Force
 
 Write-Host 'Creating zip package...'
@@ -55,4 +57,5 @@ Write-Host "Zip:    $zipPath"
 Write-Host ''
 Write-Host 'On target computer:'
 Write-Host '1) Extract zip'
-Write-Host '2) Run .\Install-LuiPFileManager.ps1 -CreateDesktopShortcut -LaunchAfterInstall'
+Write-Host '2) Double-click Install.cmd (recommended)'
+Write-Host '   or run .\Install-LuiPFileManager.ps1 -CreateDesktopShortcut -LaunchAfterInstall'
