@@ -110,7 +110,6 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -119,10 +118,16 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Lui-P File Manager" FontSize="26" FontWeight="SemiBold" Foreground="#FF143056" Margin="0,0,16,0" />
-                    <Button Content="Activity Log" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ActivityLogButton_OnClick" AutomationProperties.Name="Open activity log" />
-                    <Button Content="Settings" Padding="14,8" Margin="0,0,8,0" MinWidth="100" Click="SettingsButton_OnClick" AutomationProperties.Name="Open settings" />
-                    <Button Content="Help" Padding="14,8" Margin="0,0,8,0" MinWidth="90" Click="HelpButton_OnClick" AutomationProperties.Name="Open help guide" />
-                    <Button Content="About" Padding="14,8" MinWidth="90" Click="AboutButton_OnClick" AutomationProperties.Name="Open about information" />
+                    <Menu Margin="0,0,8,0" VerticalAlignment="Center" Background="Transparent">
+                        <MenuItem Header="File" FontSize="16" FontWeight="SemiBold">
+                            <MenuItem Header="Activity Log" Click="ActivityLogButton_OnClick" />
+                            <MenuItem Header="Settings" Click="SettingsButton_OnClick" />
+                        </MenuItem>
+                        <MenuItem Header="Help" FontSize="16" FontWeight="SemiBold">
+                            <MenuItem Header="Help" Click="HelpButton_OnClick" />
+                            <MenuItem Header="About" Click="AboutButton_OnClick" />
+                        </MenuItem>
+                    </Menu>
                 </StackPanel>
 
                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -132,65 +137,28 @@
                     <Button Content="Create Folder" Padding="14,8" Margin="0,0,8,0" MinWidth="130" Click="CreateFolderButton_OnClick" />
                     <Button Content="Delete Selected" Padding="14,8" Margin="0,0,8,0" MinWidth="140" Click="DeleteSelectedButton_OnClick" />
                     <Button x:Name="ResetLayoutButton" Content="Reset Layout" Padding="14,8" Margin="0,0,8,0" MinWidth="120" Click="ResetLayoutButton_OnClick" />
+                    <Button Margin="0,0,0,0"
+                            Padding="10,6"
+                            MinHeight="30"
+                            Click="RebuildIndexButton_OnClick"
+                            ToolTip="Click to open full index details">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="HeaderIndexingDot" Width="9" Height="9" Fill="#FF2A7A2A" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock x:Name="HeaderIndexingTextBlock"
+                                       Text="Indexing"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF234066"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,8,0" />
+                            <TextBlock x:Name="HeaderLastIndexedTextBlock"
+                                       Text="Last indexed: not yet"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF48607E"
+                                       FontSize="12" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
-
-                <Border Grid.Row="1"
-                        Grid.ColumnSpan="2"
-                        Margin="0,10,0,0"
-                        Padding="10,8"
-                        Background="#FFF8FBFF"
-                        BorderBrush="#FFD2E3FB"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Text="Selected:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF234066" Margin="0,0,8,0" />
-                        <TextBlock x:Name="TransferSelectedTextBlock"
-                                   Grid.Column="1"
-                                   VerticalAlignment="Center"
-                                   Text="None"
-                                   Foreground="#FF2E3F59"
-                                   TextTrimming="CharacterEllipsis" />
-
-                        <TextBlock Grid.Column="2" Text="Going To:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF234066" Margin="16,0,8,0" />
-                        <TextBlock x:Name="TransferDestinationTextBlock"
-                                   Grid.Column="3"
-                                   VerticalAlignment="Center"
-                                   Text="No destination selected"
-                                   Foreground="#FF2E3F59"
-                                   TextTrimming="CharacterEllipsis" />
-
-                        <Button Grid.Column="4"
-                                Margin="16,0,0,0"
-                                Padding="10,6"
-                                MinHeight="30"
-                                Click="RebuildIndexButton_OnClick"
-                                ToolTip="Click to open full index details">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse x:Name="HeaderIndexingDot" Width="9" Height="9" Fill="#FF2A7A2A" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock x:Name="HeaderIndexingTextBlock"
-                                           Text="Indexing"
-                                           VerticalAlignment="Center"
-                                           Foreground="#FF234066"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,8,0" />
-                                <TextBlock x:Name="HeaderLastIndexedTextBlock"
-                                           Text="Last indexed: not yet"
-                                           VerticalAlignment="Center"
-                                           Foreground="#FF48607E"
-                                           FontSize="12" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-                </Border>
             </Grid>
         </Border>
 
@@ -257,10 +225,17 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid Margin="0,0,0,8">
+                    <TextBlock x:Name="TransferSelectedTextBlock"
+                               Text="Selected: None"
+                               Margin="2,0,2,8"
+                               FontSize="12"
+                               Foreground="#FF2A4E87"
+                               TextTrimming="CharacterEllipsis" />
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -271,8 +246,8 @@
                             <Button Content="-" MinWidth="34" Height="28" FontSize="16" Click="SourceRemoveLocationButton_OnClick" ToolTip="Remove selected source location" />
                         </StackPanel>
                     </Grid>
-                    <ListView x:Name="SourceLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="SourceLocationListView_OnSelectionChanged" AutomationProperties.Name="Source locations list" KeyboardNavigation.TabNavigation="Continue" ItemContainerStyle="{StaticResource LocationListItemStyle}" />
-                    <TextBlock x:Name="SelectedSourceRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FF2A4E87" Text="Selected: none" TextTrimming="CharacterEllipsis" />
+                    <ListView x:Name="SourceLocationListView" Grid.Row="2" FontSize="15" SelectionChanged="SourceLocationListView_OnSelectionChanged" AutomationProperties.Name="Source locations list" KeyboardNavigation.TabNavigation="Continue" ItemContainerStyle="{StaticResource LocationListItemStyle}" />
+                    <TextBlock x:Name="SelectedSourceRootTextBlock" Grid.Row="3" Margin="2,8,2,0" FontSize="12" Foreground="#FF2A4E87" Text="Source root: none" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </GroupBox>
 
@@ -302,7 +277,6 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBlock Text="Search source files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
@@ -319,29 +293,13 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Sort:" VerticalAlignment="Center" Foreground="#FF4A5E80" Margin="0,0,6,0" />
-                            <Button Content="A↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortNameAscButton_OnClick" ToolTip="Sort by name ascending" />
-                            <Button Content="A↓" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortNameDescButton_OnClick" ToolTip="Sort by name descending" />
-                            <Button Content="D↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="SourceSortDateNewestButton_OnClick" ToolTip="Sort by date modified newest" />
-                            <Button Content="D↓" MinWidth="44" Height="28" Click="SourceSortDateOldestButton_OnClick" ToolTip="Sort by date modified oldest" />
-                        </StackPanel>
-                        <TextBlock Grid.Column="1"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Right"
-                                   Foreground="#FF4A5E80"
-                                   FontSize="12"
-                                   Text="Right-click a column header to show/hide columns" />
-                    </Grid>
-                    <Grid Grid.Row="4" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Button x:Name="SourceUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="SourceUpButton_OnClick" />
-                        <TextBlock x:Name="SourceCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock x:Name="SourceCurrentPathTextBlock" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Foreground="#FF4A5E80" FontSize="12" Text="Click header to sort. Right-click header to show/hide columns." />
+                        </StackPanel>
                     </Grid>
-                    <ListView x:Name="SourceItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" PreviewMouseRightButtonUp="SourceItemListView_OnPreviewMouseRightButtonUp" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="SourceItemListView" Grid.Row="4" FontSize="14" SelectionMode="Extended" SelectionChanged="SourceItemListView_OnSelectionChanged" MouseDoubleClick="SourceItemListView_OnMouseDoubleClick" PreviewMouseMove="SourceItemListView_OnPreviewMouseMove" PreviewMouseRightButtonUp="SourceItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="SourceItemColumnHeader_OnClick" AutomationProperties.Name="Source items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
@@ -370,7 +328,6 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBlock Text="Search destination files and folders" FontSize="12" Foreground="#FF5C5C5C" Margin="2,0,0,4" />
@@ -387,29 +344,13 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Sort:" VerticalAlignment="Center" Foreground="#FF4A5E80" Margin="0,0,6,0" />
-                            <Button Content="A↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortNameAscButton_OnClick" ToolTip="Sort by name ascending" />
-                            <Button Content="A↓" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortNameDescButton_OnClick" ToolTip="Sort by name descending" />
-                            <Button Content="D↑" MinWidth="44" Height="28" Margin="0,0,6,0" Click="DestinationSortDateNewestButton_OnClick" ToolTip="Sort by date modified newest" />
-                            <Button Content="D↓" MinWidth="44" Height="28" Click="DestinationSortDateOldestButton_OnClick" ToolTip="Sort by date modified oldest" />
-                        </StackPanel>
-                        <TextBlock Grid.Column="1"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Right"
-                                   Foreground="#FF4A5E80"
-                                   FontSize="12"
-                                   Text="Right-click a column header to show/hide columns" />
-                    </Grid>
-                    <Grid Grid.Row="4" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Button x:Name="DestinationUpButton" Content="Up" MinWidth="56" Margin="0,0,8,0" Click="DestinationUpButton_OnClick" />
-                        <TextBlock x:Name="DestinationCurrentPathTextBlock" Grid.Column="1" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock x:Name="DestinationCurrentPathTextBlock" VerticalAlignment="Center" Foreground="#FF4A5E80" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Foreground="#FF4A5E80" FontSize="12" Text="Click header to sort. Right-click header to show/hide columns." />
+                        </StackPanel>
                     </Grid>
-                    <ListView x:Name="DestinationItemListView" Grid.Row="5" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" PreviewMouseRightButtonUp="DestinationItemListView_OnPreviewMouseRightButtonUp" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
+                    <ListView x:Name="DestinationItemListView" Grid.Row="4" FontSize="14" SelectionMode="Extended" SelectionChanged="DestinationItemListView_OnSelectionChanged" MouseDoubleClick="DestinationItemListView_OnMouseDoubleClick" AllowDrop="True" Drop="DestinationItemListView_OnDrop" DragOver="DestinationItemListView_OnDragOver" PreviewMouseRightButtonUp="DestinationItemListView_OnPreviewMouseRightButtonUp" GridViewColumnHeader.Click="DestinationItemColumnHeader_OnClick" AutomationProperties.Name="Destination items list" KeyboardNavigation.TabNavigation="Continue">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="T" Width="34" DisplayMemberBinding="{Binding TypeGlyph}" />
@@ -452,10 +393,17 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid Margin="0,0,0,8">
+                    <TextBlock x:Name="TransferDestinationTextBlock"
+                               Text="Going To: No destination selected"
+                               Margin="2,0,2,8"
+                               FontSize="12"
+                               Foreground="#FF2A4E87"
+                               TextTrimming="CharacterEllipsis" />
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -466,8 +414,8 @@
                             <Button Content="-" MinWidth="34" Height="28" FontSize="16" Click="DestinationRemoveLocationButton_OnClick" ToolTip="Remove selected destination location" />
                         </StackPanel>
                     </Grid>
-                    <ListView x:Name="DestinationLocationListView" Grid.Row="1" FontSize="15" SelectionChanged="DestinationLocationListView_OnSelectionChanged" AutomationProperties.Name="Destination locations list" KeyboardNavigation.TabNavigation="Continue" ItemContainerStyle="{StaticResource LocationListItemStyle}" />
-                    <TextBlock x:Name="SelectedDestinationRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FF2A4E87" Text="Selected: none" TextTrimming="CharacterEllipsis" />
+                    <ListView x:Name="DestinationLocationListView" Grid.Row="2" FontSize="15" SelectionChanged="DestinationLocationListView_OnSelectionChanged" AutomationProperties.Name="Destination locations list" KeyboardNavigation.TabNavigation="Continue" ItemContainerStyle="{StaticResource LocationListItemStyle}" />
+                    <TextBlock x:Name="SelectedDestinationRootTextBlock" Grid.Row="3" Margin="2,8,2,0" FontSize="12" Foreground="#FF2A4E87" Text="Destination root: none" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </GroupBox>
         </Grid>

@@ -564,91 +564,77 @@ public partial class MainWindow : Window
         RefreshDestinationItems();
     }
 
-    private void SourceSortNameAscButton_OnClick(object sender, RoutedEventArgs e)
+    private void SourceItemColumnHeader_OnClick(object sender, RoutedEventArgs e)
     {
         if (!_isUiInitialized)
         {
             return;
         }
 
-        _sourceSortMode = ItemSortMode.NameAscending;
+        if (e.OriginalSource is not GridViewColumnHeader header || header.Column?.Header is null)
+        {
+            return;
+        }
+
+        var headerText = header.Column.Header.ToString();
+        if (string.IsNullOrWhiteSpace(headerText))
+        {
+            return;
+        }
+
+        switch (headerText)
+        {
+            case "Name":
+                _sourceSortMode = _sourceSortMode == ItemSortMode.NameAscending
+                    ? ItemSortMode.NameDescending
+                    : ItemSortMode.NameAscending;
+                break;
+            case "Modified":
+                _sourceSortMode = _sourceSortMode == ItemSortMode.DateModifiedNewest
+                    ? ItemSortMode.DateModifiedOldest
+                    : ItemSortMode.DateModifiedNewest;
+                break;
+            default:
+                return;
+        }
+
         RefreshSourceItems();
     }
 
-    private void SourceSortNameDescButton_OnClick(object sender, RoutedEventArgs e)
+    private void DestinationItemColumnHeader_OnClick(object sender, RoutedEventArgs e)
     {
         if (!_isUiInitialized)
         {
             return;
         }
 
-        _sourceSortMode = ItemSortMode.NameDescending;
-        RefreshSourceItems();
-    }
-
-    private void SourceSortDateNewestButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isUiInitialized)
+        if (e.OriginalSource is not GridViewColumnHeader header || header.Column?.Header is null)
         {
             return;
         }
 
-        _sourceSortMode = ItemSortMode.DateModifiedNewest;
-        RefreshSourceItems();
-    }
-
-    private void SourceSortDateOldestButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isUiInitialized)
+        var headerText = header.Column.Header.ToString();
+        if (string.IsNullOrWhiteSpace(headerText))
         {
             return;
         }
 
-        _sourceSortMode = ItemSortMode.DateModifiedOldest;
-        RefreshSourceItems();
-    }
-
-    private void DestinationSortNameAscButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isUiInitialized)
+        switch (headerText)
         {
-            return;
+            case "Name":
+                _destinationSortMode = _destinationSortMode == ItemSortMode.NameAscending
+                    ? ItemSortMode.NameDescending
+                    : ItemSortMode.NameAscending;
+                break;
+            case "Modified":
+                _destinationSortMode = _destinationSortMode == ItemSortMode.DateModifiedNewest
+                    ? ItemSortMode.DateModifiedOldest
+                    : ItemSortMode.DateModifiedNewest;
+                break;
+            default:
+                return;
         }
 
-        _destinationSortMode = ItemSortMode.NameAscending;
-        RefreshDestinationItems();
-    }
-
-    private void DestinationSortNameDescButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isUiInitialized)
-        {
-            return;
-        }
-
-        _destinationSortMode = ItemSortMode.NameDescending;
-        RefreshDestinationItems();
-    }
-
-    private void DestinationSortDateNewestButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isUiInitialized)
-        {
-            return;
-        }
-
-        _destinationSortMode = ItemSortMode.DateModifiedNewest;
-        RefreshDestinationItems();
-    }
-
-    private void DestinationSortDateOldestButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isUiInitialized)
-        {
-            return;
-        }
-
-        _destinationSortMode = ItemSortMode.DateModifiedOldest;
         RefreshDestinationItems();
     }
 
