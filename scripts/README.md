@@ -36,10 +36,18 @@ Create a copyable installer bundle and zip (self-contained app payload plus depe
 .\scripts\create-transfer-installer.ps1 -Clean
 ```
 
+Optional: set an explicit release version for the output name:
+
+```powershell
+.\scripts\create-transfer-installer.ps1 -Clean -ReleaseVersion v1.0.2
+```
+
 Output:
 
-- `dist/LuiPFileManager-Installer/`
-- `dist/LuiPFileManager-Installer.zip`
+- `dist/LuiPFileManager-Installer-<version>/`
+- `dist/LuiPFileManager-Installer-<version>.zip`
+
+When `-ReleaseVersion` is not provided, the script uses the current git tag (or latest tag) and falls back to a timestamped `dev-...` value.
 
 On the target computer:
 
@@ -50,6 +58,29 @@ Dependency behavior:
 
 - The installer checks for Microsoft Edge WebView2 Runtime.
 - If missing, it downloads and installs WebView2 automatically.
+
+## Public Download Link
+
+This is the standard workflow for client downloads:
+
+1. Make the repository public if the asset must be downloadable without login.
+2. Publish the release from a pushed `v*` tag.
+3. Share the release asset URL directly.
+4. Verify the URL outside your signed-in browser session if you need to confirm public access.
+
+To send a client a public download link, use the GitHub release asset URL after the release has been published from a pushed `v*` tag:
+
+```text
+https://github.com/hansenrogers/lui-p-file-manager/releases/download/v1.0.2/LuiP.FileManager-win-x64.zip
+```
+
+If that link returns 404, the release is not public yet or the tag/version does not match the published release.
+
+Checksum link:
+
+```text
+https://github.com/hansenrogers/lui-p-file-manager/releases/download/v1.0.2/LuiP.FileManager-win-x64.zip.sha256
+```
 
 ## Uninstall
 

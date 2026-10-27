@@ -50,7 +50,9 @@ public sealed class JournalingFileOperationService : IFileOperationService
 
         var operationId = Guid.NewGuid().ToString("N");
         var started = DateTimeOffset.UtcNow;
-        var sourcePathSummary = BuildSourcePathSummary(request.SourcePaths);
+        var hasDirectorySource = request.OperationType == FileOperationType.Copy
+            && request.SourcePaths.Any(Directory.Exists);
+        var sourcePathSummary = BuildSourcePathSummary(request.SourcePaths, hasDirectorySource);
         var sourcePathsJson = JsonSerializer.Serialize(request.SourcePaths);
         var pathSizes = request.SourcePaths.ToDictionary(path => path, EstimatePathBytes, StringComparer.OrdinalIgnoreCase);
         var estimatedTotalBytes = pathSizes.Values.Sum();
@@ -137,7 +139,7 @@ public sealed class JournalingFileOperationService : IFileOperationService
                         {
                             ItemId = Guid.NewGuid().ToString("N"),
                             OperationId = operationId,
-                            Kind = OperationItemKind.Unsupported,
+                            Kind = OperationItemKind.FolderTransferCompleted,
                             SourcePath = sourcePath,
                             DestinationPath = destinationDirectory,
                             RecoveryPath = null,
@@ -527,18 +529,20 @@ public sealed class JournalingFileOperationService : IFileOperationService
         return total;
     }
 
-    private static string? BuildSourcePathSummary(IReadOnlyList<string> sourcePaths)
+    private static string? BuildSourcePathSummary(IReadOnlyList<string> sourcePaths, bool hasDirectorySource)
     {
         if (sourcePaths.Count == 0)
         {
             return null;
         }
 
+        var prefix = hasDirectorySource ? "[Folder Transfer] " : string.Empty;
+
         if (sourcePaths.Count == 1)
         {
-            return sourcePaths[0];
+            return $"{prefix}{sourcePaths[0]}";
         }
 
-        return $"{sourcePaths[0]} (+{sourcePaths.Count - 1} more)";
+        return $"{prefix}{sourcePaths[0]} (+{sourcePaths.Count - 1} more)";
     }
 }

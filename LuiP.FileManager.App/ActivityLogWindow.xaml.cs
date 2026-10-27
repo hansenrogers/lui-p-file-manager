@@ -84,6 +84,16 @@ public partial class ActivityLogWindow : Window
         ApplyFilters();
     }
 
+    private void TransferFilterComboBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        ApplyFilters();
+    }
+
     private async void RefreshButton_OnClick(object sender, RoutedEventArgs e)
     {
         await LoadOperationsAsync().ConfigureAwait(true);
@@ -242,6 +252,7 @@ public partial class ActivityLogWindow : Window
 
         var text = (SearchTextBox.Text ?? string.Empty).Trim();
         var status = GetSelectedStatusFilter();
+        var transferFilter = GetSelectedTransferFilter();
 
         IEnumerable<FileOperationRecord> query = _loadedRecords;
 
@@ -257,6 +268,11 @@ public partial class ActivityLogWindow : Window
         if (status is not null)
         {
             query = query.Where(x => x.Status == status.Value);
+        }
+
+        if (transferFilter is not null)
+        {
+            query = query.Where(x => string.Equals(x.TransferModeLabel, transferFilter, StringComparison.OrdinalIgnoreCase));
         }
 
         var filtered = query.ToList();
@@ -288,6 +304,22 @@ public partial class ActivityLogWindow : Window
             "PartialFailed" => FileOperationStatus.PartialFailed,
             "Running" => FileOperationStatus.Running,
             "Planned" => FileOperationStatus.Planned,
+            _ => null
+        };
+    }
+
+    private string? GetSelectedTransferFilter()
+    {
+        if (TransferFilterComboBox.SelectedItem is not System.Windows.Controls.ComboBoxItem item)
+        {
+            return null;
+        }
+
+        var text = item.Content?.ToString() ?? string.Empty;
+        return text switch
+        {
+            "Folder" => "Folder",
+            "File" => "File",
             _ => null
         };
     }

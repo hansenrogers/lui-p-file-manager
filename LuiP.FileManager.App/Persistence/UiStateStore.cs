@@ -62,6 +62,10 @@ public sealed class UiState
 
     public bool DestinationShowModifiedColumn { get; init; } = true;
 
+    public bool SourceRecentsProjectModeEnabled { get; init; }
+
+    public List<string> RecentSourcePaths { get; init; } = new();
+
     public List<LocationViewState> SourceLocationViews { get; init; } = new();
 
     public List<LocationViewState> DestinationLocationViews { get; init; } = new();

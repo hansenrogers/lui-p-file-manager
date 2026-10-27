@@ -6,7 +6,8 @@ public enum DateFilterPreset
     Today = 1,
     Last7Days = 2,
     Last30Days = 3,
-    ThisYear = 4
+    ThisYear = 4,
+    SpecificYear = 5
 }
 
 public sealed class IndexLocationStatus

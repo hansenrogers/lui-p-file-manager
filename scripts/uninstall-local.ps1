@@ -9,6 +9,22 @@ $ErrorActionPreference = 'Stop'
 $installRoot = Join-Path $env:LOCALAPPDATA 'LuiPFileManager'
 $appDir = Join-Path $installRoot 'app'
 
+function Remove-AppShortcuts {
+    $shortcutRoots = @(
+        (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'),
+        ([Environment]::GetFolderPath('Desktop')),
+        (Join-Path $env:PUBLIC 'Desktop')
+    )
+
+    foreach ($root in $shortcutRoots) {
+        if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path $root)) {
+            continue
+        }
+
+        Get-ChildItem -Path $root -Filter 'Lui-P File Manager*.lnk' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $running = Get-Process -Name 'LuiP.FileManager.App' -ErrorAction SilentlyContinue
 if ($running) {
     if (-not $ForceCloseRunningApp.IsPresent) {
@@ -22,16 +38,10 @@ $startMenuFolder = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs
 $startMenuShortcut = Join-Path $startMenuFolder 'Lui-P File Manager.lnk'
 $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Lui-P File Manager.lnk'
 
-if (Test-Path $startMenuShortcut) {
-    Remove-Item -Path $startMenuShortcut -Force
-}
+Remove-AppShortcuts
 
 if (Test-Path $startMenuFolder) {
     Remove-Item -Path $startMenuFolder -Recurse -Force -ErrorAction SilentlyContinue
-}
-
-if (Test-Path $desktopShortcut) {
-    Remove-Item -Path $desktopShortcut -Force
 }
 
 if (Test-Path $appDir) {

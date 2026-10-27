@@ -72,4 +72,19 @@ public sealed class FileOperationRecord
     public DateTimeOffset? UndoExpiryUtc { get; set; }
 
     public string? ErrorMessage { get; set; }
+
+    public string TransferModeLabel
+    {
+        get
+        {
+            if (OperationType != FileOperationType.Copy)
+            {
+                return "-";
+            }
+
+            return (SourcePath?.StartsWith("[Folder Transfer] ", StringComparison.OrdinalIgnoreCase) ?? false)
+                ? "Folder"
+                : "File";
+        }
+    }
 }

@@ -77,6 +77,8 @@ public sealed record SyncBoardState
 
     public string LastSyncStatus { get; init; } = "Not synced yet.";
 
+    public bool StrictProjectFolderGuardEnabled { get; init; } = true;
+
     public List<SyncBoardPersonRow> People { get; init; } = new();
 
     public List<SyncBoardJobColumn> Jobs { get; init; } = new();
@@ -85,6 +87,7 @@ public sealed record SyncBoardState
     {
         return new SyncBoardState
         {
+            StrictProjectFolderGuardEnabled = true,
             People = new List<SyncBoardPersonRow>(),
             Jobs = new List<SyncBoardJobColumn>()
         };

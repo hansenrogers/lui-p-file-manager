@@ -25,6 +25,22 @@ if (-not (Test-Path $resolvedPublishDir)) {
 $installRoot = Join-Path $env:LOCALAPPDATA 'LuiPFileManager'
 $appDir = Join-Path $installRoot 'app'
 
+function Remove-AppShortcuts {
+    $shortcutRoots = @(
+        (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'),
+        ([Environment]::GetFolderPath('Desktop')),
+        (Join-Path $env:PUBLIC 'Desktop')
+    )
+
+    foreach ($root in $shortcutRoots) {
+        if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path $root)) {
+            continue
+        }
+
+        Get-ChildItem -Path $root -Filter 'Lui-P File Manager*.lnk' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $running = Get-Process -Name 'LuiP.FileManager.App' -ErrorAction SilentlyContinue
 if ($running) {
     if (-not $ForceCloseRunningApp.IsPresent) {
@@ -52,6 +68,16 @@ if (-not (Test-Path $exePath)) {
     throw "Expected executable was not found at $exePath"
 }
 
+$iconSource = Join-Path $PSScriptRoot '..\LuiP.FileManager.App\Assets\LuiPFileManager.ico'
+$iconPath = Join-Path $appDir 'LuiPFileManager.ico'
+if (Test-Path $iconSource) {
+    Copy-Item -Path $iconSource -Destination $iconPath -Force
+}
+
+$iconLocation = if (Test-Path $iconPath) { "$iconPath,0" } else { "$exePath,0" }
+
+Remove-AppShortcuts
+
 $startMenuFolder = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Lui-P File Manager'
 if (-not (Test-Path $startMenuFolder)) {
     New-Item -Path $startMenuFolder -ItemType Directory -Force | Out-Null
@@ -62,7 +88,7 @@ $wsh = New-Object -ComObject WScript.Shell
 $shortcut = $wsh.CreateShortcut($startMenuShortcut)
 $shortcut.TargetPath = $exePath
 $shortcut.WorkingDirectory = $appDir
-$shortcut.IconLocation = "$exePath,0"
+$shortcut.IconLocation = $iconLocation
 $shortcut.Save()
 
 if ($CreateDesktopShortcut.IsPresent) {
@@ -70,7 +96,7 @@ if ($CreateDesktopShortcut.IsPresent) {
     $desktop = $wsh.CreateShortcut($desktopShortcut)
     $desktop.TargetPath = $exePath
     $desktop.WorkingDirectory = $appDir
-    $desktop.IconLocation = "$exePath,0"
+    $desktop.IconLocation = $iconLocation
     $desktop.Save()
 }
 

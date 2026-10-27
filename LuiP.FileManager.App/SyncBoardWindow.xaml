@@ -24,16 +24,24 @@
             </StackPanel>
         </DockPanel>
 
-        <TextBlock x:Name="LastSyncTextBlock" Grid.Row="1" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6" Text="Last sync: never" />
+        <StackPanel Grid.Row="1" Orientation="Vertical" Margin="0,0,0,6">
+            <TextBlock x:Name="LastSyncTextBlock" FontSize="14" FontWeight="SemiBold" Text="Last sync: never" />
+            <TextBlock x:Name="WatcherStatusTextBlock" FontSize="13" Foreground="#FFBBD0EA" Text="Watcher: inactive" />
+            <TextBlock x:Name="WatcherHealthTextBlock" FontSize="13" Foreground="#FF9FC1E4" Text="Watcher health: no events yet." />
+        </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,6">
             <Button x:Name="ManualSyncButton" Content="Manual Sync Now" Height="36" Width="170" Margin="0,0,10,0" Click="ManualSyncButton_OnClick" />
+            <Button Content="Sync Dry Run" Height="36" Width="140" Margin="0,0,10,0" Click="DryRunSyncButton_OnClick" />
             <Button Content="Refresh Board" Height="36" Width="140" Click="RefreshBoardButton_OnClick" />
+            <Button Content="Export Sync Diagnostics" Height="36" Width="190" Margin="10,0,0,0" Click="ExportSyncDiagnosticsButton_OnClick" />
         </StackPanel>
 
         <StackPanel Grid.Row="3" Orientation="Vertical" Margin="0,0,0,10">
             <TextBlock x:Name="SourceLocationWarningTextBlock" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFC36B" Text="Source location: not set" />
             <TextBlock x:Name="JobLocationWarningTextBlock" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFC36B" Text="Job location: not set" />
+            <CheckBox x:Name="StrictProjectGuardCheckBox" Margin="0,4,0,0" Content="Strict project folder guard (block writes outside person/job/project path)" Checked="StrictProjectGuardCheckBox_OnChanged" Unchecked="StrictProjectGuardCheckBox_OnChanged" IsChecked="True" />
+            <TextBlock x:Name="DestinationPreviewTextBlock" Margin="0,4,0,0" FontSize="13" Foreground="#FFBBD0EA" Text="Destination preview: (select or check a person/job cell)" TextWrapping="Wrap" />
         </StackPanel>
 
         <Border Grid.Row="4" BorderThickness="1" BorderBrush="#FF526784" CornerRadius="8" Padding="10" Background="#FF182333">
@@ -45,9 +53,9 @@
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" DockPanel.Dock="Left">
-                        <Button Content="Add Person" Width="120" Height="34" Margin="0,0,8,0" Click="AddPersonButton_OnClick" />
                         <Button Content="Add Job" Width="110" Height="34" Margin="0,0,8,0" Click="AddJobButton_OnClick" />
                         <Button Content="Remove Job" Width="120" Height="34" Margin="0,0,8,0" Click="RemoveJobButton_OnClick" />
+                        <Button Content="Add Person" Width="120" Height="34" Margin="0,0,8,0" Click="AddPersonButton_OnClick" />
                         <Button Content="Remove Person" Width="130" Height="34" Click="RemovePersonButton_OnClick" />
                     </StackPanel>
                 </DockPanel>
@@ -81,6 +89,7 @@
                             <Setter Property="Padding" Value="6,4" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                             <Setter Property="HorizontalContentAlignment" Value="Center" />
+                            <EventSetter Event="Click" Handler="DataGridColumnHeader_OnClick" />
                         </Style>
                     </DataGrid.ColumnHeaderStyle>
                     <DataGrid.RowStyle>

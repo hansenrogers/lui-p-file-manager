@@ -193,6 +193,34 @@ public sealed class UndoService : IUndoService
                         undone++;
                         break;
 
+                    case OperationItemKind.FolderTransferCompleted:
+                        if (string.IsNullOrWhiteSpace(item.DestinationPath))
+                        {
+                            failures.Add("Folder transfer undo is missing destination metadata.");
+                            break;
+                        }
+
+                        if (!Directory.Exists(item.DestinationPath))
+                        {
+                            failures.Add($"Transferred folder no longer exists: {item.DestinationPath}");
+                            break;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(operation.DestinationPath))
+                        {
+                            var destinationRoot = Path.GetFullPath(operation.DestinationPath);
+                            var destinationFolder = Path.GetFullPath(item.DestinationPath);
+                            if (!destinationFolder.StartsWith(destinationRoot, StringComparison.OrdinalIgnoreCase))
+                            {
+                                failures.Add($"Refusing to undo folder transfer outside operation destination root: {item.DestinationPath}");
+                                break;
+                            }
+                        }
+
+                        Directory.Delete(item.DestinationPath, recursive: true);
+                        undone++;
+                        break;
+
                     default:
                         failures.Add($"Unsupported undo type for item: {item.SourcePath}");
                         break;

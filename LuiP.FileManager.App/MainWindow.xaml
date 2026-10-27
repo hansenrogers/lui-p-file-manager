@@ -396,6 +396,9 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -417,7 +420,37 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <TextBlock x:Name="SelectedSourceRootTextBlock" Grid.Row="2" Margin="2,8,2,0" FontSize="12" Foreground="#FFAEC4E6" Text="Source root: none" TextTrimming="CharacterEllipsis" />
+
+                    <CheckBox x:Name="SourceRecentsProjectModeCheckBox"
+                              Grid.Row="2"
+                              Margin="2,8,2,0"
+                              Content="Recent source quick access by project number"
+                              Checked="SourceRecentsProjectModeCheckBox_OnChanged"
+                              Unchecked="SourceRecentsProjectModeCheckBox_OnChanged"
+                              ToolTip="Off: recent full folders (default). On: unique recent project numbers." />
+
+                    <TextBlock Grid.Row="3" Margin="2,8,2,4" FontSize="12" Foreground="#FFC6D3E8" Text="Recent source quick access" />
+
+                    <ListView x:Name="RecentSourceListView"
+                              Grid.Row="4"
+                              Height="140"
+                              FontSize="13"
+                              SelectionMode="Single"
+                              MouseDoubleClick="RecentSourceListView_OnMouseDoubleClick"
+                              PreviewKeyDown="RecentSourceListView_OnPreviewKeyDown"
+                              AutomationProperties.Name="Recent source quick access"
+                              ItemContainerStyle="{StaticResource LocationListItemStyle}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding SecondaryText}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="#FFAEC4E6" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <TextBlock x:Name="SelectedSourceRootTextBlock" Grid.Row="5" Margin="2,8,2,0" FontSize="12" Foreground="#FFAEC4E6" Text="Source root: none" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </GroupBox>
 

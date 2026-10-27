@@ -83,6 +83,15 @@
                     <CheckBox x:Name="ChecksumDefaultCheckBox" Content="Enable large-file SHA-256 verification by default" Margin="0,0,0,8" />
                     <CheckBox x:Name="ConfirmMoveCheckBox" Content="Ask for confirmation before Move to Destination" Margin="0,0,0,8" />
                     <CheckBox x:Name="SyncBoardAutoSyncCheckBox" Content="Enable Sync Board auto-sync when project files change" Margin="0,0,0,8" />
+                    <CheckBox x:Name="SyncBoardMirrorDeletesCheckBox" Content="Mirror source deletions to destination in Sync Board" Margin="0,0,0,8" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Indexing aggressiveness:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ComboBox x:Name="IndexingAggressivenessComboBox" Width="150" Height="28" SelectedIndex="1">
+                            <ComboBoxItem Content="Fast" />
+                            <ComboBoxItem Content="Normal" />
+                            <ComboBoxItem Content="Low" />
+                        </ComboBox>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Threshold (MB):" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBox x:Name="ChecksumThresholdTextBox" Width="100" Height="28" VerticalContentAlignment="Center" />

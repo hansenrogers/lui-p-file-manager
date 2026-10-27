@@ -25,11 +25,29 @@ namespace LuiP.FileManager.App;
 /// </summary>
 public partial class MainWindow : Window
 {
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LastInputInfo
+    {
+        public uint cbSize;
+        public uint dwTime;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LastInputInfo plii);
+
     private sealed class LocationListItem
     {
         public required string Id { get; init; }
         public required string DisplayName { get; init; }
         public required string FullPath { get; init; }
+    }
+
+    private sealed class RecentSourceListItem
+    {
+        public required string DisplayName { get; init; }
+        public required string FullPath { get; init; }
+        public string SecondaryText { get; init; } = string.Empty;
+        public string? ProjectNumber { get; init; }
     }
 
     private enum ItemSortMode
@@ -62,6 +80,7 @@ public partial class MainWindow : Window
     private readonly AppPreferencesStore _preferencesStore;
     private readonly DispatcherTimer _uiStateSaveTimer;
     private readonly DispatcherTimer _indexReconcileTimer;
+    private readonly DispatcherTimer _indexIdlePollTimer;
 
     private readonly List<ConfiguredLocation> _sourceLocations = new();
     private readonly List<ConfiguredLocation> _destinationLocations = new();
@@ -73,6 +92,8 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, ItemSortMode> _destinationSortModeByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateFilterPreset> _sourceDateFilterByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateFilterPreset> _destinationDateFilterByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _sourceSelectedYearByLocationId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _destinationSelectedYearByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Stack<string>> _sourceBackHistoryByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Stack<string>> _sourceForwardHistoryByLocationId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Stack<string>> _destinationBackHistoryByLocationId = new(StringComparer.Ordinal);
@@ -83,6 +104,8 @@ public partial class MainWindow : Window
 
     private DateFilterPreset _sourceDateFilter = DateFilterPreset.AllDates;
     private DateFilterPreset _destinationDateFilter = DateFilterPreset.AllDates;
+    private int _sourceSelectedYear = DateTime.Now.Year;
+    private int _destinationSelectedYear = DateTime.Now.Year;
     private bool _sourceShowModifiedColumn = true;
     private bool _destinationShowModifiedColumn = true;
     private bool _isSourceLocationsColumnCollapsed;
@@ -94,25 +117,37 @@ public partial class MainWindow : Window
     private static readonly GridLength LocationToggleColumnWidth = new(16);
     private const double DefaultNameColumnWidth = 260;
     private const double DefaultModifiedColumnWidth = 170;
+    private const int MaxRecentSourcePaths = 20;
     private List<string> _pendingCutPaths = new();
     private bool _verifyLargeFileChecksumByDefault;
     private bool _confirmBeforeMoveToDestination = true;
     private bool _syncBoardAutoSyncEnabled = true;
+    private bool _sourceRecentsProjectModeEnabled;
     private long _checksumThresholdBytes = 32L * 1024L * 1024L;
+    private TimeSpan _watcherReindexDebounceDelay = TimeSpan.FromSeconds(30);
+    private TimeSpan _watcherReindexMinimumInterval = TimeSpan.FromMinutes(15);
+    private TimeSpan _fullReconcileMinimumInterval = TimeSpan.FromHours(6);
+    private TimeSpan _requiredIdleBeforeIndex = TimeSpan.FromMinutes(2);
     private string? _currentSourcePath;
     private string? _currentDestinationPath;
     private CancellationTokenSource? _indexingCts;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _watcherDebounceByLocation = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _watcherLastReindexByLocation = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ConfiguredLocation> _pendingLocationReindexById = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<FileSystemWatcher> _indexWatchers = new();
     private bool _isIndexing;
     private bool _hasStartedAutoIndex;
+    private bool _pendingFullReindex;
+    private bool _indexPauseRequestedForActivity;
     private bool _isUiInitialized;
     private bool _startupInitialized;
     private bool _isApplyingSavedLocationState;
     private string? _activeSourceLocationId;
     private string? _activeDestinationLocationId;
     private TimeSpan? _lastIndexDuration;
+    private DateTimeOffset? _lastFullIndexCompletedUtc;
     private UiState? _loadedUiState;
+    private readonly List<string> _recentSourcePaths = new();
     private PreviewWindow? _previewWindow;
     private SyncBoardWindow? _syncBoardWindow;
     private WinForms.NotifyIcon? _trayIcon;
@@ -133,8 +168,10 @@ public partial class MainWindow : Window
         _preferencesStore = new AppPreferencesStore(_appPathsProvider);
         _uiStateSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _uiStateSaveTimer.Tick += UiStateSaveTimer_OnTick;
-        _indexReconcileTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        _indexReconcileTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(15) };
         _indexReconcileTimer.Tick += IndexReconcileTimer_OnTick;
+        _indexIdlePollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _indexIdlePollTimer.Tick += IndexIdlePollTimer_OnTick;
 
         InitializeComponent();
         ApplyLocationColumnVisibility();
@@ -250,6 +287,12 @@ public partial class MainWindow : Window
             ConfigureIndexWatchers();
             RefreshShortcuts();
             _isUiInitialized = true;
+            if (SourceRecentsProjectModeCheckBox is not null)
+            {
+                SourceRecentsProjectModeCheckBox.IsChecked = _sourceRecentsProjectModeEnabled;
+            }
+
+            RefreshRecentSourceQuickAccessList();
             ApplySelectedLocationStateFromCurrentSelection();
             ApplyColumnVisibility();
             RefreshAllViews();
@@ -273,6 +316,41 @@ public partial class MainWindow : Window
 
         _sourceShowModifiedColumn = state.SourceShowModifiedColumn;
         _destinationShowModifiedColumn = state.DestinationShowModifiedColumn;
+        _sourceRecentsProjectModeEnabled = state.SourceRecentsProjectModeEnabled;
+        _recentSourcePaths.Clear();
+        foreach (var path in state.RecentSourcePaths)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            var fullPath = path;
+            try
+            {
+                fullPath = Path.GetFullPath(path);
+            }
+            catch
+            {
+                // Ignore malformed persisted paths.
+            }
+
+            if (!Directory.Exists(fullPath))
+            {
+                continue;
+            }
+
+            if (_recentSourcePaths.Any(existing => PathsEqual(existing, fullPath)))
+            {
+                continue;
+            }
+
+            _recentSourcePaths.Add(fullPath);
+            if (_recentSourcePaths.Count >= MaxRecentSourcePaths)
+            {
+                break;
+            }
+        }
         LoadLocationViewDictionaries(state);
 
         if (double.IsNaN(state.Left) || double.IsNaN(state.Top) || double.IsNaN(state.Width) || double.IsNaN(state.Height))
@@ -340,6 +418,7 @@ public partial class MainWindow : Window
         }
 
         _indexReconcileTimer.Stop();
+        _indexIdlePollTimer.Stop();
         DisposeIndexWatchers();
         foreach (var pair in _watcherDebounceByLocation)
         {
@@ -365,6 +444,8 @@ public partial class MainWindow : Window
             SelectedDestinationLocationId = GetSelectedDestinationLocation()?.Id,
             SourceShowModifiedColumn = _sourceShowModifiedColumn,
             DestinationShowModifiedColumn = _destinationShowModifiedColumn,
+            SourceRecentsProjectModeEnabled = _sourceRecentsProjectModeEnabled,
+            RecentSourcePaths = _recentSourcePaths.ToList(),
             SourceLocationViews = BuildLocationViewStateList(
                 _sourceLocations,
                 _sourceCurrentPathByLocationId,
@@ -388,6 +469,8 @@ public partial class MainWindow : Window
         _destinationSortModeByLocationId.Clear();
         _sourceDateFilterByLocationId.Clear();
         _destinationDateFilterByLocationId.Clear();
+        _sourceSelectedYearByLocationId.Clear();
+        _destinationSelectedYearByLocationId.Clear();
 
         foreach (var row in state.SourceLocationViews)
         {
@@ -471,6 +554,38 @@ public partial class MainWindow : Window
         _checksumThresholdBytes = preferences.ChecksumThresholdBytes > 0
             ? preferences.ChecksumThresholdBytes
             : 32L * 1024L * 1024L;
+        ApplyIndexingAggressiveness(preferences.IndexingAggressiveness);
+    }
+
+    private void ApplyIndexingAggressiveness(string? profile)
+    {
+        var normalized = (profile ?? string.Empty).Trim();
+
+        if (normalized.Equals(AppPreferences.IndexingProfileFast, StringComparison.OrdinalIgnoreCase))
+        {
+            _watcherReindexDebounceDelay = TimeSpan.FromSeconds(10);
+            _watcherReindexMinimumInterval = TimeSpan.FromMinutes(3);
+            _fullReconcileMinimumInterval = TimeSpan.FromHours(1);
+            _requiredIdleBeforeIndex = TimeSpan.FromSeconds(45);
+            _indexReconcileTimer.Interval = TimeSpan.FromMinutes(10);
+            return;
+        }
+
+        if (normalized.Equals(AppPreferences.IndexingProfileLow, StringComparison.OrdinalIgnoreCase))
+        {
+            _watcherReindexDebounceDelay = TimeSpan.FromMinutes(1);
+            _watcherReindexMinimumInterval = TimeSpan.FromMinutes(45);
+            _fullReconcileMinimumInterval = TimeSpan.FromHours(12);
+            _requiredIdleBeforeIndex = TimeSpan.FromMinutes(5);
+            _indexReconcileTimer.Interval = TimeSpan.FromMinutes(30);
+            return;
+        }
+
+        _watcherReindexDebounceDelay = TimeSpan.FromSeconds(30);
+        _watcherReindexMinimumInterval = TimeSpan.FromMinutes(15);
+        _fullReconcileMinimumInterval = TimeSpan.FromHours(6);
+        _requiredIdleBeforeIndex = TimeSpan.FromMinutes(2);
+        _indexReconcileTimer.Interval = TimeSpan.FromMinutes(15);
     }
 
     private void InitializeLocationsFromRepository()
@@ -539,12 +654,14 @@ public partial class MainWindow : Window
         RemoveStaleKeys(_sourceCurrentPathByLocationId, sourceIds);
         RemoveStaleKeys(_sourceSortModeByLocationId, sourceIds);
         RemoveStaleKeys(_sourceDateFilterByLocationId, sourceIds);
+        RemoveStaleKeys(_sourceSelectedYearByLocationId, sourceIds);
         RemoveStaleHistory(_sourceBackHistoryByLocationId, sourceIds);
         RemoveStaleHistory(_sourceForwardHistoryByLocationId, sourceIds);
 
         RemoveStaleKeys(_destinationCurrentPathByLocationId, destinationIds);
         RemoveStaleKeys(_destinationSortModeByLocationId, destinationIds);
         RemoveStaleKeys(_destinationDateFilterByLocationId, destinationIds);
+        RemoveStaleKeys(_destinationSelectedYearByLocationId, destinationIds);
         RemoveStaleHistory(_destinationBackHistoryByLocationId, destinationIds);
         RemoveStaleHistory(_destinationForwardHistoryByLocationId, destinationIds);
     }
@@ -626,6 +743,7 @@ public partial class MainWindow : Window
 
     private void RefreshAllViews()
     {
+        RefreshRecentSourceQuickAccessList();
         RefreshSourceItems();
         RefreshDestinationItems();
     }
@@ -658,6 +776,8 @@ public partial class MainWindow : Window
             _sourceCurrentPathByLocationId[_activeSourceLocationId] = _currentSourcePath;
         }
 
+        TrackRecentSourcePath(_currentSourcePath);
+
         UpdateSourceNavigationUi(selectedRoot, _currentSourcePath);
 
         var query = SourceSearchTextBox.Text?.Trim() ?? string.Empty;
@@ -667,7 +787,7 @@ public partial class MainWindow : Window
                 .SearchAsync(LocationKind.Source, selected.Id, query, _sourceDateFilter, 500, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult()
-                .Where(x => MatchesDateFilter(x.ModifiedUtc, _sourceDateFilter));
+                .Where(x => MatchesDateFilter(x.ModifiedUtc, _sourceDateFilter, _sourceSelectedYear));
 
             var sortedSearchResults = SortSearchResults(searchResults, _sourceSortMode).ToList();
 
@@ -681,7 +801,7 @@ public partial class MainWindow : Window
         }
 
         var fsEntries = Directory.EnumerateFileSystemEntries(_currentSourcePath)
-            .Where(path => MatchesDateFilter(path, _sourceDateFilter));
+            .Where(path => MatchesDateFilter(path, _sourceDateFilter, _sourceSelectedYear));
         var sortedEntries = SortPathEntries(fsEntries, _sourceSortMode).Take(500).ToList();
         var items = new List<FileItemRow>(sortedEntries.Count);
         foreach (var entry in sortedEntries)
@@ -730,7 +850,7 @@ public partial class MainWindow : Window
                 .SearchAsync(LocationKind.Destination, selected.Id, query, _destinationDateFilter, 500, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult()
-                .Where(x => MatchesDateFilter(x.ModifiedUtc, _destinationDateFilter));
+                .Where(x => MatchesDateFilter(x.ModifiedUtc, _destinationDateFilter, _destinationSelectedYear));
 
             var sortedSearchResults = SortSearchResults(searchResults, _destinationSortMode).ToList();
 
@@ -744,7 +864,7 @@ public partial class MainWindow : Window
         }
 
         var fsEntries = Directory.EnumerateFileSystemEntries(_currentDestinationPath)
-            .Where(path => MatchesDateFilter(path, _destinationDateFilter));
+            .Where(path => MatchesDateFilter(path, _destinationDateFilter, _destinationSelectedYear));
         var sortedEntries = SortPathEntries(fsEntries, _destinationSortMode).Take(500).ToList();
         var items = new List<FileItemRow>(sortedEntries.Count);
         foreach (var entry in sortedEntries)
@@ -881,6 +1001,7 @@ public partial class MainWindow : Window
 
         _currentSourcePath = targetPath;
         _sourceCurrentPathByLocationId[locationId] = targetPath;
+        TrackRecentSourcePath(targetPath);
         SourceSearchTextBox.Text = string.Empty;
         RefreshSourceItems();
         UpdateNavigationButtons();
@@ -915,6 +1036,167 @@ public partial class MainWindow : Window
         DestinationSearchTextBox.Text = string.Empty;
         RefreshDestinationItems();
         UpdateNavigationButtons();
+    }
+
+    private void TrackRecentSourcePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+        _recentSourcePaths.RemoveAll(existing => PathsEqual(existing, fullPath));
+        _recentSourcePaths.Insert(0, fullPath);
+
+        if (_recentSourcePaths.Count > MaxRecentSourcePaths)
+        {
+            _recentSourcePaths.RemoveRange(MaxRecentSourcePaths, _recentSourcePaths.Count - MaxRecentSourcePaths);
+        }
+
+        RefreshRecentSourceQuickAccessList();
+        _uiStateSaveTimer.Stop();
+        _uiStateSaveTimer.Start();
+    }
+
+    private void RefreshRecentSourceQuickAccessList()
+    {
+        if (RecentSourceListView is null)
+        {
+            return;
+        }
+
+        var rows = new List<RecentSourceListItem>();
+        var seenProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in _recentSourcePaths)
+        {
+            if (!Directory.Exists(path))
+            {
+                continue;
+            }
+
+            if (_sourceRecentsProjectModeEnabled)
+            {
+                if (!TryGetProjectContextForPath(path, out var projectNumber, out var sourceRootName, out var sourceRootPath))
+                {
+                    continue;
+                }
+
+                var dedupeKey = sourceRootPath + "|" + projectNumber;
+                if (!seenProjects.Add(dedupeKey))
+                {
+                    continue;
+                }
+
+                rows.Add(new RecentSourceListItem
+                {
+                    DisplayName = projectNumber,
+                    FullPath = path,
+                    SecondaryText = $"Source: {sourceRootName}",
+                    ProjectNumber = projectNumber
+                });
+
+                continue;
+            }
+
+            var folderName = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            rows.Add(new RecentSourceListItem
+            {
+                DisplayName = string.IsNullOrWhiteSpace(folderName) ? path : folderName,
+                FullPath = path,
+                SecondaryText = path,
+                ProjectNumber = null
+            });
+        }
+
+        RecentSourceListView.ItemsSource = rows;
+    }
+
+    private bool TryGetProjectContextForPath(string path, out string projectNumber, out string sourceRootName, out string sourceRootPath)
+    {
+        projectNumber = string.Empty;
+        sourceRootName = string.Empty;
+        sourceRootPath = string.Empty;
+
+        var sourceRoot = _sourceLocations
+            .Where(location => IsPathWithinRoot(path, location.Path))
+            .OrderByDescending(location => location.Path.Length)
+            .FirstOrDefault();
+
+        if (sourceRoot is null)
+        {
+            return false;
+        }
+
+        sourceRootPath = sourceRoot.Path;
+        sourceRootName = sourceRoot.Name;
+
+        var relative = Path.GetRelativePath(sourceRoot.Path, path);
+        if (string.IsNullOrWhiteSpace(relative) || relative == ".")
+        {
+            return false;
+        }
+
+        var separators = new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+        var firstSegment = relative.Split(separators, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(firstSegment))
+        {
+            return false;
+        }
+
+        projectNumber = firstSegment.Trim();
+        return projectNumber.Length > 0;
+    }
+
+    private void SourceRecentsProjectModeCheckBox_OnChanged(object sender, RoutedEventArgs e)
+    {
+        _sourceRecentsProjectModeEnabled = SourceRecentsProjectModeCheckBox.IsChecked == true;
+        RefreshRecentSourceQuickAccessList();
+        _uiStateSaveTimer.Stop();
+        _uiStateSaveTimer.Start();
+    }
+
+    private void RecentSourceListView_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        OpenSelectedRecentSourcePath();
+    }
+
+    private void RecentSourceListView_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            OpenSelectedRecentSourcePath();
+            e.Handled = true;
+        }
+    }
+
+    private void OpenSelectedRecentSourcePath()
+    {
+        if (RecentSourceListView.SelectedItem is not RecentSourceListItem selected || !Directory.Exists(selected.FullPath))
+        {
+            return;
+        }
+
+        var targetLocation = _sourceLocations
+            .Where(location => IsPathWithinRoot(selected.FullPath, location.Path))
+            .OrderByDescending(location => location.Path.Length)
+            .FirstOrDefault();
+
+        if (targetLocation is null)
+        {
+            MessageBox.Show(this, "The selected recent path is no longer inside a configured source location.", "Recent Source Access", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (!string.Equals(_activeSourceLocationId, targetLocation.Id, StringComparison.Ordinal))
+        {
+            SourceLocationListView.SelectedItem = SourceLocationListView.Items
+                .OfType<LocationListItem>()
+                .FirstOrDefault(item => string.Equals(item.Id, targetLocation.Id, StringComparison.Ordinal));
+        }
+
+        NavigateSourceToPath(selected.FullPath, clearForwardHistory: true, pushCurrentToBack: true);
     }
 
     private void SourceBackButton_OnClick(object sender, RoutedEventArgs e)
@@ -1044,10 +1326,21 @@ public partial class MainWindow : Window
             return;
         }
 
-        _sourceDateFilter = ParseDateFilterPreset(SourceDateFilterComboBox.SelectedIndex);
+        // Index 0 is "All Dates", subsequent indices are years
+        if (SourceDateFilterComboBox.SelectedIndex == 0)
+        {
+            _sourceDateFilter = DateFilterPreset.AllDates;
+        }
+        else if (SourceDateFilterComboBox.SelectedItem is ComboBoxItem item && item.Tag is int year)
+        {
+            _sourceDateFilter = DateFilterPreset.SpecificYear;
+            _sourceSelectedYear = year;
+        }
+
         if (!string.IsNullOrWhiteSpace(_activeSourceLocationId))
         {
             _sourceDateFilterByLocationId[_activeSourceLocationId] = _sourceDateFilter;
+            _sourceSelectedYearByLocationId[_activeSourceLocationId] = _sourceSelectedYear;
         }
         RefreshSourceItems();
     }
@@ -1059,10 +1352,21 @@ public partial class MainWindow : Window
             return;
         }
 
-        _destinationDateFilter = ParseDateFilterPreset(DestinationDateFilterComboBox.SelectedIndex);
+        // Index 0 is "All Dates", subsequent indices are years
+        if (DestinationDateFilterComboBox.SelectedIndex == 0)
+        {
+            _destinationDateFilter = DateFilterPreset.AllDates;
+        }
+        else if (DestinationDateFilterComboBox.SelectedItem is ComboBoxItem item && item.Tag is int year)
+        {
+            _destinationDateFilter = DateFilterPreset.SpecificYear;
+            _destinationSelectedYear = year;
+        }
+
         if (!string.IsNullOrWhiteSpace(_activeDestinationLocationId))
         {
             _destinationDateFilterByLocationId[_activeDestinationLocationId] = _destinationDateFilter;
+            _destinationSelectedYearByLocationId[_activeDestinationLocationId] = _destinationSelectedYear;
         }
         RefreshDestinationItems();
     }
@@ -1243,6 +1547,159 @@ public partial class MainWindow : Window
         }
     }
 
+    private void PopulateSourceYearFilter(string currentPath)
+    {
+        if (SourceDateFilterComboBox is null || string.IsNullOrWhiteSpace(currentPath))
+        {
+            return;
+        }
+
+        _isApplyingSavedLocationState = true;
+        try
+        {
+            var years = GetAvailableYears(currentPath);
+            var currentYear = DateTime.Now.Year;
+
+            SourceDateFilterComboBox.Items.Clear();
+            
+            // Add "All Dates" option
+            var allDatesItem = new ComboBoxItem
+            {
+                Content = "All Dates",
+                Style = (Style)FindResource("DateFilterComboBoxItemStyle")
+            };
+            SourceDateFilterComboBox.Items.Add(allDatesItem);
+
+            // Add years in descending order (newest first)
+            foreach (var year in years.OrderByDescending(y => y))
+            {
+                var yearItem = new ComboBoxItem
+                {
+                    Content = year.ToString(),
+                    Tag = year,
+                    Style = (Style)FindResource("DateFilterComboBoxItemStyle")
+                };
+                SourceDateFilterComboBox.Items.Add(yearItem);
+            }
+
+            // Set default selection to current year if available, otherwise "All Dates"
+            if (_sourceDateFilter == DateFilterPreset.SpecificYear && years.Contains(_sourceSelectedYear))
+            {
+                var index = years.OrderByDescending(y => y).ToList().IndexOf(_sourceSelectedYear) + 1;
+                SourceDateFilterComboBox.SelectedIndex = index;
+            }
+            else if (years.Contains(currentYear))
+            {
+                var index = years.OrderByDescending(y => y).ToList().IndexOf(currentYear) + 1;
+                SourceDateFilterComboBox.SelectedIndex = index;
+                _sourceDateFilter = DateFilterPreset.SpecificYear;
+                _sourceSelectedYear = currentYear;
+            }
+            else
+            {
+                SourceDateFilterComboBox.SelectedIndex = 0;
+                _sourceDateFilter = DateFilterPreset.AllDates;
+            }
+        }
+        finally
+        {
+            _isApplyingSavedLocationState = false;
+        }
+    }
+
+    private void PopulateDestinationYearFilter(string currentPath)
+    {
+        if (DestinationDateFilterComboBox is null || string.IsNullOrWhiteSpace(currentPath))
+        {
+            return;
+        }
+
+        _isApplyingSavedLocationState = true;
+        try
+        {
+            var years = GetAvailableYears(currentPath);
+            var currentYear = DateTime.Now.Year;
+
+            DestinationDateFilterComboBox.Items.Clear();
+            
+            // Add "All Dates" option
+            var allDatesItem = new ComboBoxItem
+            {
+                Content = "All Dates",
+                Style = (Style)FindResource("DateFilterComboBoxItemStyle")
+            };
+            DestinationDateFilterComboBox.Items.Add(allDatesItem);
+
+            // Add years in descending order (newest first)
+            foreach (var year in years.OrderByDescending(y => y))
+            {
+                var yearItem = new ComboBoxItem
+                {
+                    Content = year.ToString(),
+                    Tag = year,
+                    Style = (Style)FindResource("DateFilterComboBoxItemStyle")
+                };
+                DestinationDateFilterComboBox.Items.Add(yearItem);
+            }
+
+            // Set default selection to current year if available, otherwise "All Dates"
+            if (_destinationDateFilter == DateFilterPreset.SpecificYear && years.Contains(_destinationSelectedYear))
+            {
+                var index = years.OrderByDescending(y => y).ToList().IndexOf(_destinationSelectedYear) + 1;
+                DestinationDateFilterComboBox.SelectedIndex = index;
+            }
+            else if (years.Contains(currentYear))
+            {
+                var index = years.OrderByDescending(y => y).ToList().IndexOf(currentYear) + 1;
+                DestinationDateFilterComboBox.SelectedIndex = index;
+                _destinationDateFilter = DateFilterPreset.SpecificYear;
+                _destinationSelectedYear = currentYear;
+            }
+            else
+            {
+                DestinationDateFilterComboBox.SelectedIndex = 0;
+                _destinationDateFilter = DateFilterPreset.AllDates;
+            }
+        }
+        finally
+        {
+            _isApplyingSavedLocationState = false;
+        }
+    }
+
+    private static HashSet<int> GetAvailableYears(string rootPath)
+    {
+        var years = new HashSet<int>();
+        
+        if (!Directory.Exists(rootPath))
+        {
+            return years;
+        }
+
+        try
+        {
+            // Get years from directories
+            foreach (var dir in Directory.EnumerateDirectories(rootPath, "*", SearchOption.TopDirectoryOnly))
+            {
+                var lastWrite = Directory.GetLastWriteTime(dir);
+                years.Add(lastWrite.Year);
+            }
+
+            // Get years from files
+            foreach (var file in Directory.EnumerateFiles(rootPath, "*", SearchOption.TopDirectoryOnly))
+            {
+                var lastWrite = File.GetLastWriteTime(file);
+                years.Add(lastWrite.Year);
+            }
+        }
+        catch
+        {
+            // Ignore access errors
+        }
+
+        return years;
+    }
+
     private static string ResolveStoredPath(IReadOnlyDictionary<string, string> map, string locationId, string fallbackRoot)
     {
         if (map.TryGetValue(locationId, out var storedPath)
@@ -1270,6 +1727,7 @@ public partial class MainWindow : Window
 
         _sourceSortModeByLocationId[_activeSourceLocationId] = _sourceSortMode;
         _sourceDateFilterByLocationId[_activeSourceLocationId] = _sourceDateFilter;
+        _sourceSelectedYearByLocationId[_activeSourceLocationId] = _sourceSelectedYear;
     }
 
     private void SaveDestinationViewStateForActiveLocation()
@@ -1286,6 +1744,7 @@ public partial class MainWindow : Window
 
         _destinationSortModeByLocationId[_activeDestinationLocationId] = _destinationSortMode;
         _destinationDateFilterByLocationId[_activeDestinationLocationId] = _destinationDateFilter;
+        _destinationSelectedYearByLocationId[_activeDestinationLocationId] = _destinationSelectedYear;
     }
 
     private void CaptureActiveLocationViewState()
@@ -1401,10 +1860,20 @@ public partial class MainWindow : Window
 
     private static bool MatchesDateFilter(string path, DateFilterPreset preset)
     {
-        return MatchesDateFilter(TryGetLastWriteUtc(path), preset);
+        return MatchesDateFilter(TryGetLastWriteUtc(path), preset, null);
     }
 
     private static bool MatchesDateFilter(DateTimeOffset? modifiedUtc, DateFilterPreset preset)
+    {
+        return MatchesDateFilter(modifiedUtc, preset, null);
+    }
+
+    private bool MatchesDateFilter(string path, DateFilterPreset preset, int? selectedYear)
+    {
+        return MatchesDateFilter(TryGetLastWriteUtc(path), preset, selectedYear);
+    }
+
+    private static bool MatchesDateFilter(DateTimeOffset? modifiedUtc, DateFilterPreset preset, int? selectedYear)
     {
         if (preset == DateFilterPreset.AllDates)
         {
@@ -1426,6 +1895,7 @@ public partial class MainWindow : Window
             DateFilterPreset.Last7Days => modifiedLocal >= today.AddDays(-6),
             DateFilterPreset.Last30Days => modifiedLocal >= today.AddDays(-29),
             DateFilterPreset.ThisYear => modifiedLocal.Year == nowLocal.Year,
+            DateFilterPreset.SpecificYear => selectedYear.HasValue && modifiedLocal.Year == selectedYear.Value,
             _ => true
         };
     }
@@ -1470,9 +1940,12 @@ public partial class MainWindow : Window
                 : ItemSortMode.NameAscending;
             _sourceDateFilter = _sourceDateFilterByLocationId.TryGetValue(selected.Id, out var storedFilter)
                 ? storedFilter
-                : DateFilterPreset.AllDates;
+                : DateFilterPreset.SpecificYear;
+            _sourceSelectedYear = _sourceSelectedYearByLocationId.TryGetValue(selected.Id, out var storedYear)
+                ? storedYear
+                : DateTime.Now.Year;
             _currentSourcePath = ResolveStoredPath(_sourceCurrentPathByLocationId, selected.Id, selected.Path);
-            ApplySourceDateFilterSelection();
+            PopulateSourceYearFilter(selected.Path);
         }
         else
         {
@@ -1510,9 +1983,12 @@ public partial class MainWindow : Window
                 : ItemSortMode.NameAscending;
             _destinationDateFilter = _destinationDateFilterByLocationId.TryGetValue(selected.Id, out var storedFilter)
                 ? storedFilter
-                : DateFilterPreset.AllDates;
+                : DateFilterPreset.SpecificYear;
+            _destinationSelectedYear = _destinationSelectedYearByLocationId.TryGetValue(selected.Id, out var storedYear)
+                ? storedYear
+                : DateTime.Now.Year;
             _currentDestinationPath = ResolveStoredPath(_destinationCurrentPathByLocationId, selected.Id, selected.Path);
-            ApplyDestinationDateFilterSelection();
+            PopulateDestinationYearFilter(selected.Path);
         }
         else
         {
@@ -3149,7 +3625,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!IsUserIdleForIndexing())
+        {
+            _pendingFullReindex = true;
+            EnsureIndexIdlePollingEnabled();
+            SetIndexingUiState(false, "Index paused until computer is idle.", 0, 1);
+            return;
+        }
+
         _isIndexing = true;
+        _indexPauseRequestedForActivity = false;
         _indexingCts = new CancellationTokenSource();
         var runStartedUtc = DateTimeOffset.UtcNow;
 
@@ -3187,11 +3672,20 @@ public partial class MainWindow : Window
             SetIndexingUiState(false, $"Index ready. Indexed {completed} location(s).", activeLocations.Count, activeLocations.Count);
             RefreshAllViews();
             _lastIndexDuration = DateTimeOffset.UtcNow - runStartedUtc;
+            _lastFullIndexCompletedUtc = DateTimeOffset.UtcNow;
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
-            SetIndexingUiState(false, "Indexing stopped.", 0, 1);
+            if (_indexPauseRequestedForActivity)
+            {
+                SetIndexingUiState(false, "Index paused while computer is in use.", 0, 1);
+            }
+            else
+            {
+                SetIndexingUiState(false, "Indexing stopped.", 0, 1);
+            }
+
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -3217,7 +3711,9 @@ public partial class MainWindow : Window
 
         _hasStartedAutoIndex = true;
         SetIndexingUiState(true, "Index startup scan queued...", 0, 0);
-        _ = EnsureIndexBuiltAsync();
+        _pendingFullReindex = true;
+        EnsureIndexIdlePollingEnabled();
+        _ = EnsureIndexWorkWhenIdleAsync();
     }
 
     private void ConfigureIndexWatchers()
@@ -3238,11 +3734,8 @@ public partial class MainWindow : Window
                     IncludeSubdirectories = true,
                     NotifyFilter = NotifyFilters.FileName
                         | NotifyFilters.DirectoryName
-                        | NotifyFilters.LastWrite
-                        | NotifyFilters.Size
                 };
 
-                watcher.Changed += (_, _) => ScheduleLocationReindex(location);
                 watcher.Created += (_, _) => ScheduleLocationReindex(location);
                 watcher.Deleted += (_, _) => ScheduleLocationReindex(location);
                 watcher.Renamed += (_, _) => ScheduleLocationReindex(location);
@@ -3289,7 +3782,13 @@ public partial class MainWindow : Window
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(2), cts.Token).ConfigureAwait(false);
+                await Task.Delay(_watcherReindexDebounceDelay, cts.Token).ConfigureAwait(false);
+
+                if (_watcherLastReindexByLocation.TryGetValue(location.Id, out var lastRunUtc)
+                    && DateTimeOffset.UtcNow - lastRunUtc < _watcherReindexMinimumInterval)
+                {
+                    return;
+                }
 
                 if (_isIndexing)
                 {
@@ -3298,6 +3797,14 @@ public partial class MainWindow : Window
 
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    if (!IsUserIdleForIndexing())
+                    {
+                        _pendingLocationReindexById[location.Id] = location;
+                        EnsureIndexIdlePollingEnabled();
+                        return;
+                    }
+
+                    _watcherLastReindexByLocation[location.Id] = DateTimeOffset.UtcNow;
                     _ = ReindexSingleLocationAsync(location, "Auto index update");
                 });
             }
@@ -3446,18 +3953,44 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!IsUserIdleForIndexing())
+        {
+            _pendingLocationReindexById[location.Id] = location;
+            EnsureIndexIdlePollingEnabled();
+            return;
+        }
+
         _isIndexing = true;
+        _indexPauseRequestedForActivity = false;
+        _indexingCts = new CancellationTokenSource();
+        var token = _indexingCts.Token;
         var runStartedUtc = DateTimeOffset.UtcNow;
         try
         {
             SetIndexingUiState(true, $"{reason}: {location.Name}", 0, 1);
             await Task.Run(async () =>
             {
-                await _indexService.RebuildLocationAsync(location.Id, CancellationToken.None).ConfigureAwait(false);
-            }).ConfigureAwait(true);
+                await _indexService.RebuildLocationAsync(location.Id, token).ConfigureAwait(false);
+            }, token).ConfigureAwait(true);
             SetIndexingUiState(false, $"Index updated: {location.Name}", 1, 1);
             RefreshAllViews();
             _lastIndexDuration = DateTimeOffset.UtcNow - runStartedUtc;
+            _watcherLastReindexByLocation[location.Id] = DateTimeOffset.UtcNow;
+            await RefreshLastIndexedStateAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            if (_indexPauseRequestedForActivity)
+            {
+                _pendingLocationReindexById[location.Id] = location;
+                EnsureIndexIdlePollingEnabled();
+                SetIndexingUiState(false, "Index update paused while computer is in use.", 0, 1);
+            }
+            else
+            {
+                SetIndexingUiState(false, "Index update canceled.", 0, 1);
+            }
+
             await RefreshLastIndexedStateAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -3469,6 +4002,8 @@ public partial class MainWindow : Window
         finally
         {
             _isIndexing = false;
+            _indexingCts?.Dispose();
+            _indexingCts = null;
         }
     }
 
@@ -3479,7 +4014,110 @@ public partial class MainWindow : Window
             return;
         }
 
-        _ = EnsureIndexBuiltAsync();
+        if (_lastFullIndexCompletedUtc.HasValue
+            && DateTimeOffset.UtcNow - _lastFullIndexCompletedUtc.Value < _fullReconcileMinimumInterval)
+        {
+            return;
+        }
+
+        _pendingFullReindex = true;
+        EnsureIndexIdlePollingEnabled();
+        _ = EnsureIndexWorkWhenIdleAsync();
+    }
+
+    private void EnsureIndexIdlePollingEnabled()
+    {
+        if (!_indexIdlePollTimer.IsEnabled)
+        {
+            _indexIdlePollTimer.Start();
+        }
+    }
+
+    private async void IndexIdlePollTimer_OnTick(object? sender, EventArgs e)
+    {
+        if (_isIndexing)
+        {
+            if (!IsUserIdleForIndexing() && _indexingCts is not null && !_indexPauseRequestedForActivity)
+            {
+                _indexPauseRequestedForActivity = true;
+                _indexingCts.Cancel();
+            }
+
+            return;
+        }
+
+        if (!IsUserIdleForIndexing())
+        {
+            return;
+        }
+
+        await EnsureIndexWorkWhenIdleAsync().ConfigureAwait(true);
+    }
+
+    private async Task EnsureIndexWorkWhenIdleAsync()
+    {
+        if (_isIndexing || !IsUserIdleForIndexing())
+        {
+            return;
+        }
+
+        if (_pendingFullReindex)
+        {
+            _pendingFullReindex = false;
+            await EnsureIndexBuiltAsync().ConfigureAwait(true);
+            return;
+        }
+
+        if (_pendingLocationReindexById.IsEmpty)
+        {
+            if (_indexIdlePollTimer.IsEnabled)
+            {
+                _indexIdlePollTimer.Stop();
+            }
+
+            return;
+        }
+
+        var next = _pendingLocationReindexById.Values.FirstOrDefault();
+        if (next is null)
+        {
+            return;
+        }
+
+        _pendingLocationReindexById.TryRemove(next.Id, out _);
+        await ReindexSingleLocationAsync(next, "Deferred index update").ConfigureAwait(true);
+    }
+
+    private bool IsUserIdleForIndexing()
+    {
+        var idleDuration = GetUserIdleDuration();
+        if (!idleDuration.HasValue)
+        {
+            return true;
+        }
+
+        return idleDuration.Value >= _requiredIdleBeforeIndex;
+    }
+
+    private static TimeSpan? GetUserIdleDuration()
+    {
+        var info = new LastInputInfo
+        {
+            cbSize = (uint)Marshal.SizeOf<LastInputInfo>()
+        };
+
+        if (!GetLastInputInfo(ref info))
+        {
+            return null;
+        }
+
+        var elapsedMs = Environment.TickCount64 - info.dwTime;
+        if (elapsedMs < 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        return TimeSpan.FromMilliseconds(elapsedMs);
     }
 
     private void SetIndexingUiState(bool isRunning, string message, int completedLocations, int totalLocations)

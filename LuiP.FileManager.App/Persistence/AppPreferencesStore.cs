@@ -66,11 +66,19 @@ public sealed class AppPreferencesStore
 
 public sealed record AppPreferences
 {
+    public const string IndexingProfileFast = "Fast";
+    public const string IndexingProfileNormal = "Normal";
+    public const string IndexingProfileLow = "Low";
+
     public bool VerifyLargeFileChecksumByDefault { get; init; }
 
     public bool ConfirmBeforeMoveToDestination { get; init; } = true;
 
     public bool SyncBoardAutoSyncEnabled { get; init; } = true;
+
+    public bool SyncBoardMirrorDeletesEnabled { get; init; } = true;
+
+    public string IndexingAggressiveness { get; init; } = IndexingProfileNormal;
 
     public long ChecksumThresholdBytes { get; init; } = 32L * 1024L * 1024L;
 
@@ -81,6 +89,8 @@ public sealed record AppPreferences
             VerifyLargeFileChecksumByDefault = false,
             ConfirmBeforeMoveToDestination = true,
             SyncBoardAutoSyncEnabled = true,
+            SyncBoardMirrorDeletesEnabled = true,
+            IndexingAggressiveness = IndexingProfileNormal,
             ChecksumThresholdBytes = 32L * 1024L * 1024L
         };
     }

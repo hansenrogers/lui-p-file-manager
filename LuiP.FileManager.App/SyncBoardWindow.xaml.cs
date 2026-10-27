@@ -1,6 +1,7 @@
 using System.Data;
 using System.ComponentModel;
 using System.IO;
+using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -19,6 +20,7 @@ public partial class SyncBoardWindow : Window
 
     private readonly IFileOperationService _fileOperationService;
     private readonly AppPreferencesStore _preferencesStore;
+    private readonly IAppPathsProvider _appPathsProvider;
     private readonly SyncBoardStore _store;
     private readonly DispatcherTimer _autoSyncDebounceTimer;
     private readonly List<SyncBoardJobColumn> _jobs = new();
@@ -29,14 +31,22 @@ public partial class SyncBoardWindow : Window
     private string _destinationRootPath = string.Empty;
     private DateTimeOffset? _lastSyncUtc;
     private bool _isSyncRunning;
+    private bool _pendingAutoSyncRequested;
+    private bool _isSourceWatcherActive;
+    private bool _strictProjectFolderGuardEnabled = true;
+    private DateTimeOffset? _lastWatcherEventUtc;
+    private string _lastWatcherEventSummary = "No events yet.";
+    private string _lastAutoSyncTriggerReason = "None yet.";
     private string _lastSyncStatus = "Not synced yet.";
     private FileSystemWatcher? _sourceWatcher;
+    private string? _selectedJobId;
 
     public SyncBoardWindow(IFileOperationService fileOperationService, AppPreferencesStore preferencesStore)
     {
         _fileOperationService = fileOperationService;
         _preferencesStore = preferencesStore;
-        _store = new SyncBoardStore(new WindowsAppPathsProvider());
+        _appPathsProvider = new WindowsAppPathsProvider();
+        _store = new SyncBoardStore(_appPathsProvider);
         _autoSyncDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _autoSyncDebounceTimer.Tick += AutoSyncDebounceTimer_OnTick;
 
@@ -55,6 +65,8 @@ public partial class SyncBoardWindow : Window
         _destinationRootPath = state.DestinationRootPath;
         _lastSyncUtc = state.LastSyncUtc;
         _lastSyncStatus = string.IsNullOrWhiteSpace(state.LastSyncStatus) ? "Not synced yet." : state.LastSyncStatus;
+        _strictProjectFolderGuardEnabled = state.StrictProjectFolderGuardEnabled;
+        StrictProjectGuardCheckBox.IsChecked = _strictProjectFolderGuardEnabled;
 
         _jobs.Clear();
         _jobs.AddRange(state.Jobs.Where(job => !string.IsNullOrWhiteSpace(job.JobId)));
@@ -129,11 +141,13 @@ public partial class SyncBoardWindow : Window
             ProjectNumber = string.Empty,
             LastSyncUtc = _lastSyncUtc,
             LastSyncStatus = _lastSyncStatus,
+            StrictProjectFolderGuardEnabled = _strictProjectFolderGuardEnabled,
             People = people,
             Jobs = _jobs.ToList()
         };
 
         _store.Save(state);
+        UpdateDestinationPreviewText();
     }
 
     private void BuildMatrixColumns()
@@ -173,6 +187,13 @@ public partial class SyncBoardWindow : Window
                 FontWeight = FontWeights.SemiBold
             };
 
+            if (string.Equals(_selectedJobId, job.JobId, StringComparison.OrdinalIgnoreCase))
+            {
+                header.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(78, 122, 171));
+                header.Foreground = System.Windows.Media.Brushes.White;
+                header.Padding = new Thickness(4, 2, 4, 2);
+            }
+
             var jobColumn = new DataGridCheckBoxColumn
             {
                 Header = header,
@@ -193,13 +214,24 @@ public partial class SyncBoardWindow : Window
         return _preferencesStore.Load().SyncBoardAutoSyncEnabled;
     }
 
+    private bool IsDeleteMirrorEnabled()
+    {
+        return _preferencesStore.Load().SyncBoardMirrorDeletesEnabled;
+    }
+
     private void UpdateHeaderTexts()
     {
         var timestamp = _lastSyncUtc.HasValue
-            ? _lastSyncUtc.Value.ToLocalTime().ToString("M-d-yyyy h:mm:ss tt")
+            ? _lastSyncUtc.Value.ToLocalTime().ToString("yyyy-MM-dd h:mm:ss tt")
             : "never";
 
         LastSyncTextBlock.Text = $"Last sync: {timestamp}";
+        WatcherStatusTextBlock.Text = $"Watcher: {(_isSourceWatcherActive ? "active" : "inactive")} | Last sync date/time: {timestamp}";
+        var watcherEventText = _lastWatcherEventUtc.HasValue
+            ? _lastWatcherEventUtc.Value.ToLocalTime().ToString("yyyy-MM-dd h:mm:ss tt")
+            : "never";
+        WatcherHealthTextBlock.Text = $"Watcher health: last event {watcherEventText} | event {_lastWatcherEventSummary} | auto-sync trigger {_lastAutoSyncTriggerReason}";
+        UpdateDestinationPreviewText();
         SourceLocationWarningTextBlock.Visibility = string.IsNullOrWhiteSpace(_sourceRootPath)
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -213,19 +245,23 @@ public partial class SyncBoardWindow : Window
     {
         _sourceWatcher?.Dispose();
         _sourceWatcher = null;
+        _isSourceWatcherActive = false;
 
         if (!IsAutoSyncEnabled())
         {
+            UpdateHeaderTexts();
             return;
         }
 
         if (string.IsNullOrWhiteSpace(_sourceRootPath) || !Directory.Exists(_sourceRootPath))
         {
+            UpdateHeaderTexts();
             return;
         }
 
         if (!HasAnyCheckedCells())
         {
+            UpdateHeaderTexts();
             return;
         }
 
@@ -240,12 +276,26 @@ public partial class SyncBoardWindow : Window
         _sourceWatcher.Created += SourceWatcher_OnChanged;
         _sourceWatcher.Deleted += SourceWatcher_OnChanged;
         _sourceWatcher.Renamed += SourceWatcher_OnChanged;
+        _sourceWatcher.Error += SourceWatcher_OnError;
+        _isSourceWatcherActive = true;
+        UpdateHeaderTexts();
     }
 
     private void SourceWatcher_OnChanged(object sender, FileSystemEventArgs e)
     {
-        if (!IsAutoSyncEnabled() || _isSyncRunning)
+        if (!IsAutoSyncEnabled())
         {
+            return;
+        }
+
+        _lastWatcherEventUtc = DateTimeOffset.UtcNow;
+        _lastWatcherEventSummary = $"{e.ChangeType}: {Path.GetFileName(e.FullPath)}";
+
+        if (_isSyncRunning)
+        {
+            _pendingAutoSyncRequested = true;
+            _lastAutoSyncTriggerReason = "Queued while sync running";
+            Dispatcher.Invoke(UpdateHeaderTexts);
             return;
         }
 
@@ -253,17 +303,39 @@ public partial class SyncBoardWindow : Window
         {
             _autoSyncDebounceTimer.Stop();
             _autoSyncDebounceTimer.Start();
+            _lastAutoSyncTriggerReason = $"{e.ChangeType}: {Path.GetFileName(e.FullPath)}";
             StatusTextBlock.Text = "Detected source change. Auto-sync queued...";
+            UpdateHeaderTexts();
+        });
+    }
+
+    private void SourceWatcher_OnError(object sender, ErrorEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _lastWatcherEventUtc = DateTimeOffset.UtcNow;
+            _lastWatcherEventSummary = "Watcher error";
+            _lastAutoSyncTriggerReason = "Watcher restart after error";
+            ConfigureSourceWatcher();
+            if (IsAutoSyncEnabled())
+            {
+                _autoSyncDebounceTimer.Stop();
+                _autoSyncDebounceTimer.Start();
+                StatusTextBlock.Text = "Watcher restarted after source notification error. Auto-sync queued...";
+            }
+
+            UpdateHeaderTexts();
         });
     }
 
     private async void AutoSyncDebounceTimer_OnTick(object? sender, EventArgs e)
     {
         _autoSyncDebounceTimer.Stop();
-        await RunSyncAsync(isAutoTrigger: true).ConfigureAwait(true);
+        _lastAutoSyncTriggerReason = "Debounce timer elapsed";
+        await RunSyncAsync(isAutoTrigger: true, dryRun: false).ConfigureAwait(true);
     }
 
-    private async Task RunSyncAsync(bool isAutoTrigger)
+    private async Task RunSyncAsync(bool isAutoTrigger, bool dryRun)
     {
         if (_isSyncRunning)
         {
@@ -296,19 +368,26 @@ public partial class SyncBoardWindow : Window
             return;
         }
 
-        _isSyncRunning = true;
-        ManualSyncButton.IsEnabled = false;
+        _isSyncRunning = !dryRun;
+        ManualSyncButton.IsEnabled = dryRun ? ManualSyncButton.IsEnabled : false;
 
         var syncedCells = 0;
         var copiedFiles = 0;
         var skippedFiles = 0;
+        var deletedItems = 0;
+        var migratedItems = 0;
+        var mirrorDeletes = IsDeleteMirrorEnabled();
 
         try
         {
             foreach (var person in activePeople)
             {
-                var personRoot = Path.Combine(_destinationRootPath, person.PersonName);
-                await EnsureTrackedFolderAsync(personRoot).ConfigureAwait(true);
+                var personFolderName = NormalizeFolderSegment(person.PersonName, "DB NEW");
+                var personRoot = Path.Combine(_destinationRootPath, personFolderName);
+                if (!dryRun)
+                {
+                    await EnsureTrackedFolderAsync(personRoot).ConfigureAwait(true);
+                }
 
                 foreach (var job in activeJobs)
                 {
@@ -317,33 +396,80 @@ public partial class SyncBoardWindow : Window
                         continue;
                     }
 
-                    var sourceProjectFolder = Path.Combine(_sourceRootPath, job.ProjectNumber.Trim());
-                    if (!Directory.Exists(sourceProjectFolder))
+                    var jobFolderName = NormalizeFolderSegment(job.JobName, "NEW JOB");
+                    var projectFolderName = NormalizeFolderSegment(job.ProjectNumber, "UNKNOWN_PROJECT");
+                    var jobFolder = Path.Combine(personRoot, jobFolderName);
+                    EnsurePathWithinProjectGuard(jobFolder, jobFolder, projectFolderName);
+                    if (!dryRun)
                     {
+                        await EnsureTrackedFolderAsync(jobFolder).ConfigureAwait(true);
+                    }
+
+                    var projectFolder = Path.Combine(jobFolder, projectFolderName);
+                    EnsurePathWithinProjectGuard(projectFolder, jobFolder, projectFolderName);
+                    if (dryRun)
+                    {
+                        migratedItems += CountLegacyJobFolderItems(jobFolder, projectFolder);
+                    }
+                    else
+                    {
+                        migratedItems += await MigrateLegacyJobFolderLayoutAsync(jobFolder, projectFolder).ConfigureAwait(true);
+                    }
+
+                    var sourceProjectFolder = ResolveSourceProjectFolder(projectFolderName);
+                    if (string.IsNullOrWhiteSpace(sourceProjectFolder) || !Directory.Exists(sourceProjectFolder))
+                    {
+                        if (mirrorDeletes && Directory.Exists(projectFolder))
+                        {
+                            if (!dryRun)
+                            {
+                                await _fileOperationService.ExecuteAsync(new FileOperationRequest
+                                {
+                                    OperationType = FileOperationType.Delete,
+                                    SourcePaths = new[] { projectFolder },
+                                    DestinationPath = null
+                                }, progress: null, CancellationToken.None).ConfigureAwait(true);
+                            }
+
+                            deletedItems++;
+                        }
+
                         continue;
                     }
 
-                    var jobFolder = Path.Combine(personRoot, job.JobName.Trim());
-                    await EnsureTrackedFolderAsync(jobFolder).ConfigureAwait(true);
+                    if (!dryRun)
+                    {
+                        await EnsureTrackedFolderAsync(projectFolder).ConfigureAwait(true);
+                    }
 
                     foreach (var sourceDir in Directory.EnumerateDirectories(sourceProjectFolder, "*", SearchOption.AllDirectories))
                     {
                         var relative = Path.GetRelativePath(sourceProjectFolder, sourceDir);
-                        var destinationDir = Path.Combine(jobFolder, relative);
-                        await EnsureTrackedFolderAsync(destinationDir).ConfigureAwait(true);
+                        var destinationDir = Path.Combine(projectFolder, relative);
+                        EnsurePathWithinProjectGuard(destinationDir, jobFolder, projectFolderName);
+                        if (!dryRun)
+                        {
+                            await EnsureTrackedFolderAsync(destinationDir).ConfigureAwait(true);
+                        }
                     }
 
                     foreach (var sourceFile in Directory.EnumerateFiles(sourceProjectFolder, "*", SearchOption.AllDirectories))
                     {
                         var relative = Path.GetRelativePath(sourceProjectFolder, sourceFile);
-                        var destinationFile = Path.Combine(jobFolder, relative);
+                        var destinationFile = Path.Combine(projectFolder, relative);
                         var destinationDir = Path.GetDirectoryName(destinationFile);
                         if (string.IsNullOrWhiteSpace(destinationDir))
                         {
                             continue;
                         }
 
-                        await EnsureTrackedFolderAsync(destinationDir).ConfigureAwait(true);
+                        EnsurePathWithinProjectGuard(destinationDir, jobFolder, projectFolderName);
+                        EnsurePathWithinProjectGuard(destinationFile, jobFolder, projectFolderName);
+
+                        if (!dryRun)
+                        {
+                            await EnsureTrackedFolderAsync(destinationDir).ConfigureAwait(true);
+                        }
 
                         if (File.Exists(destinationFile))
                         {
@@ -353,33 +479,50 @@ public partial class SyncBoardWindow : Window
                                 continue;
                             }
 
+                            if (!dryRun)
+                            {
+                                await _fileOperationService.ExecuteAsync(new FileOperationRequest
+                                {
+                                    OperationType = FileOperationType.Delete,
+                                    SourcePaths = new[] { destinationFile },
+                                    DestinationPath = null
+                                }, progress: null, CancellationToken.None).ConfigureAwait(true);
+                            }
+                        }
+
+                        if (!dryRun)
+                        {
                             await _fileOperationService.ExecuteAsync(new FileOperationRequest
                             {
-                                OperationType = FileOperationType.Delete,
-                                SourcePaths = new[] { destinationFile },
-                                DestinationPath = null
+                                OperationType = FileOperationType.Copy,
+                                SourcePaths = new[] { sourceFile },
+                                DestinationPath = destinationDir,
+                                ConflictResolution = ConflictResolution.KeepBoth,
+                                ApplyToAllConflicts = true,
+                                VerifyChecksumForLargeFiles = false
                             }, progress: null, CancellationToken.None).ConfigureAwait(true);
                         }
 
-                        await _fileOperationService.ExecuteAsync(new FileOperationRequest
-                        {
-                            OperationType = FileOperationType.Copy,
-                            SourcePaths = new[] { sourceFile },
-                            DestinationPath = destinationDir,
-                            ConflictResolution = ConflictResolution.KeepBoth,
-                            ApplyToAllConflicts = true,
-                            VerifyChecksumForLargeFiles = false
-                        }, progress: null, CancellationToken.None).ConfigureAwait(true);
-
                         copiedFiles++;
+                    }
+
+                    if (mirrorDeletes)
+                    {
+                        deletedItems += await RemoveDestinationItemsMissingFromSourceAsync(sourceProjectFolder, projectFolder, dryRun, jobFolder, projectFolderName).ConfigureAwait(true);
                     }
 
                     syncedCells++;
                 }
             }
 
-            _lastSyncUtc = DateTimeOffset.UtcNow;
-            _lastSyncStatus = $"Sync complete: {syncedCells} checked cell(s), {copiedFiles} copied, {skippedFiles} already current.";
+            if (!dryRun)
+            {
+                _lastSyncUtc = DateTimeOffset.UtcNow;
+            }
+
+            _lastSyncStatus = dryRun
+                ? $"Dry run: {syncedCells} checked cell(s), {copiedFiles} copy/update actions, {deletedItems} delete actions, {skippedFiles} already current, {migratedItems} legacy move actions."
+                : $"Sync complete: {syncedCells} checked cell(s), {copiedFiles} copied, {deletedItems} deleted, {skippedFiles} already current, {migratedItems} moved into project folders.";
             SaveState();
             UpdateHeaderTexts();
         }
@@ -398,6 +541,16 @@ public partial class SyncBoardWindow : Window
         {
             _isSyncRunning = false;
             ManualSyncButton.IsEnabled = true;
+
+            if (_pendingAutoSyncRequested && IsAutoSyncEnabled())
+            {
+                _pendingAutoSyncRequested = false;
+                _autoSyncDebounceTimer.Stop();
+                _autoSyncDebounceTimer.Start();
+                _lastAutoSyncTriggerReason = "Follow-up run after pending source changes";
+                StatusTextBlock.Text = "Detected additional source changes. Auto-sync queued...";
+                UpdateHeaderTexts();
+            }
         }
     }
 
@@ -428,6 +581,214 @@ public partial class SyncBoardWindow : Window
 
         var delta = (leftInfo.LastWriteTimeUtc - rightInfo.LastWriteTimeUtc).Duration();
         return delta <= TimeSpan.FromSeconds(2);
+    }
+
+    private async Task<int> RemoveDestinationItemsMissingFromSourceAsync(string sourceRoot, string destinationRoot, bool dryRun, string jobFolder, string projectFolderName)
+    {
+        if (!Directory.Exists(destinationRoot))
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+
+        var sourceFiles = Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(sourceRoot, path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var destinationFile in Directory.EnumerateFiles(destinationRoot, "*", SearchOption.AllDirectories).ToList())
+        {
+            var relative = Path.GetRelativePath(destinationRoot, destinationFile);
+            if (sourceFiles.Contains(relative))
+            {
+                continue;
+            }
+
+            EnsurePathWithinProjectGuard(destinationFile, jobFolder, projectFolderName);
+
+            if (!dryRun)
+            {
+                await _fileOperationService.ExecuteAsync(new FileOperationRequest
+                {
+                    OperationType = FileOperationType.Delete,
+                    SourcePaths = new[] { destinationFile },
+                    DestinationPath = null
+                }, progress: null, CancellationToken.None).ConfigureAwait(true);
+            }
+
+            deletedCount++;
+        }
+
+        var sourceDirectories = Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(sourceRoot, path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var destinationDirectory in Directory.EnumerateDirectories(destinationRoot, "*", SearchOption.AllDirectories)
+                     .OrderByDescending(path => path.Length)
+                     .ToList())
+        {
+            var relative = Path.GetRelativePath(destinationRoot, destinationDirectory);
+            if (sourceDirectories.Contains(relative))
+            {
+                continue;
+            }
+
+            if (!Directory.Exists(destinationDirectory))
+            {
+                continue;
+            }
+
+            EnsurePathWithinProjectGuard(destinationDirectory, jobFolder, projectFolderName);
+
+            if (!dryRun)
+            {
+                await _fileOperationService.ExecuteAsync(new FileOperationRequest
+                {
+                    OperationType = FileOperationType.Delete,
+                    SourcePaths = new[] { destinationDirectory },
+                    DestinationPath = null
+                }, progress: null, CancellationToken.None).ConfigureAwait(true);
+            }
+
+            deletedCount++;
+        }
+
+        return deletedCount;
+    }
+
+    private string? ResolveSourceProjectFolder(string projectNumber)
+    {
+        var trimmedProjectNumber = NormalizeFolderSegment(projectNumber, string.Empty);
+        if (string.IsNullOrWhiteSpace(trimmedProjectNumber)
+            || string.IsNullOrWhiteSpace(_sourceRootPath)
+            || !Directory.Exists(_sourceRootPath))
+        {
+            return null;
+        }
+
+        var nestedProjectFolder = Path.Combine(_sourceRootPath, trimmedProjectNumber);
+        if (Directory.Exists(nestedProjectFolder))
+        {
+            return nestedProjectFolder;
+        }
+
+        var sourceRootName = new DirectoryInfo(_sourceRootPath).Name.Trim();
+        if (string.Equals(sourceRootName, trimmedProjectNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return _sourceRootPath;
+        }
+
+        return null;
+    }
+
+    private static string NormalizeFolderSegment(string? value, string fallback)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        normalized = normalized.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            normalized = normalized.Replace(invalid, '-');
+        }
+
+        normalized = normalized.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? fallback : normalized;
+    }
+
+    private int CountLegacyJobFolderItems(string jobFolder, string projectFolder)
+    {
+        if (!Directory.Exists(jobFolder))
+        {
+            return 0;
+        }
+
+        var fullProjectFolderPath = Path.GetFullPath(projectFolder);
+        return Directory.EnumerateFileSystemEntries(jobFolder, "*", SearchOption.TopDirectoryOnly)
+            .Count(path => !string.Equals(Path.GetFullPath(path), fullProjectFolderPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void EnsurePathWithinProjectGuard(string targetPath, string jobFolder, string projectFolderName)
+    {
+        if (!_strictProjectFolderGuardEnabled)
+        {
+            return;
+        }
+
+        var expectedRoot = Path.GetFullPath(Path.Combine(jobFolder, projectFolderName))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullTarget = Path.GetFullPath(targetPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(fullTarget, expectedRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var expectedRootPrefix = expectedRoot + Path.DirectorySeparatorChar;
+        if (!fullTarget.StartsWith(expectedRootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Strict project folder guard blocked write outside project folder. Target: {targetPath}");
+        }
+    }
+
+    private void UpdateDestinationPreviewText()
+    {
+        DestinationPreviewTextBlock.Text = $"Destination preview: {BuildDestinationPreviewText()}";
+    }
+
+    private string BuildDestinationPreviewText()
+    {
+        var person = GetActivePeople().FirstOrDefault();
+        var job = _jobs.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x.ProjectNumber))
+                  ?? _jobs.FirstOrDefault();
+
+        if (person is null || job is null || string.IsNullOrWhiteSpace(_destinationRootPath))
+        {
+            return "(select or check a person/job cell)";
+        }
+
+        var personFolderName = NormalizeFolderSegment(person.PersonName, "DB NEW");
+        var jobFolderName = NormalizeFolderSegment(job.JobName, "NEW JOB");
+        var projectFolderName = NormalizeFolderSegment(job.ProjectNumber, "UNKNOWN_PROJECT");
+        return Path.Combine(_destinationRootPath, personFolderName, jobFolderName, projectFolderName);
+    }
+
+    private async Task<int> MigrateLegacyJobFolderLayoutAsync(string jobFolder, string projectFolder)
+    {
+        if (!Directory.Exists(jobFolder))
+        {
+            return 0;
+        }
+
+        var fullProjectFolderPath = Path.GetFullPath(projectFolder);
+        var legacyEntries = Directory.EnumerateFileSystemEntries(jobFolder, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => !string.Equals(Path.GetFullPath(path), fullProjectFolderPath, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (legacyEntries.Count == 0)
+        {
+            return 0;
+        }
+
+        await EnsureTrackedFolderAsync(projectFolder).ConfigureAwait(true);
+
+        var moved = 0;
+        foreach (var entry in legacyEntries)
+        {
+            await _fileOperationService.ExecuteAsync(new FileOperationRequest
+            {
+                OperationType = FileOperationType.Move,
+                SourcePaths = new[] { entry },
+                DestinationPath = projectFolder,
+                ConflictResolution = ConflictResolution.KeepBoth,
+                ApplyToAllConflicts = true,
+                VerifyChecksumForLargeFiles = false
+            }, progress: null, CancellationToken.None).ConfigureAwait(true);
+
+            moved++;
+        }
+
+        return moved;
     }
 
     private void AddPersonRow(string personName)
@@ -571,6 +932,27 @@ public partial class SyncBoardWindow : Window
         ConfigureSourceWatcher();
     }
 
+    private void DataGridColumnHeader_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not DataGridColumnHeader header)
+        {
+            return;
+        }
+
+        var sortMember = header.Column?.SortMemberPath;
+        if (string.IsNullOrWhiteSpace(sortMember) || sortMember == PersonColumnName)
+        {
+            return;
+        }
+
+        if (_jobs.Any(job => string.Equals(job.JobId, sortMember, StringComparison.OrdinalIgnoreCase)))
+        {
+            _selectedJobId = sortMember;
+            StatusTextBlock.Text = $"Selected job: {GetSelectedJobDisplayName()}";
+            RebuildGridColumns();
+        }
+    }
+
     private async void RemoveJobButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (_jobs.Count == 0)
@@ -579,27 +961,32 @@ public partial class SyncBoardWindow : Window
             return;
         }
 
-        var defaultName = _jobs[^1].JobName;
-        var prompt = new InputPromptWindow("Remove Job", "Type the job name to remove:", defaultName)
-        {
-            Owner = this
-        };
-
-        if (prompt.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var jobNameInput = prompt.Result?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(jobNameInput))
-        {
-            return;
-        }
-
-        var job = _jobs.FirstOrDefault(x => string.Equals(x.JobName, jobNameInput, StringComparison.OrdinalIgnoreCase));
+        var job = GetSelectedJob();
         if (job is null)
         {
-            MessageBox.Show(this, "Job name not found.", "Remove Job", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var defaultName = _jobs[^1].JobName;
+            var prompt = new InputPromptWindow("Remove Job", "Type the job name to remove:", defaultName)
+            {
+                Owner = this
+            };
+
+            if (prompt.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var jobNameInput = prompt.Result?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(jobNameInput))
+            {
+                return;
+            }
+
+            job = _jobs.FirstOrDefault(x => string.Equals(x.JobName, jobNameInput, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (job is null)
+        {
+            MessageBox.Show(this, "Selected job not found.", "Remove Job", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -637,6 +1024,11 @@ public partial class SyncBoardWindow : Window
         }
 
         _jobs.Remove(job);
+        if (string.Equals(_selectedJobId, job.JobId, StringComparison.OrdinalIgnoreCase))
+        {
+            _selectedJobId = null;
+        }
+
         if (_matrixTable.Columns.Contains(job.JobId))
         {
             _matrixTable.Columns.Remove(job.JobId);
@@ -681,9 +1073,37 @@ public partial class SyncBoardWindow : Window
         SaveState();
     }
 
+    private SyncBoardJobColumn? GetSelectedJob()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedJobId))
+        {
+            return null;
+        }
+
+        return _jobs.FirstOrDefault(job => string.Equals(job.JobId, _selectedJobId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string GetSelectedJobDisplayName()
+    {
+        var job = GetSelectedJob();
+        if (job is null)
+        {
+            return "none";
+        }
+
+        return string.IsNullOrWhiteSpace(job.ProjectNumber)
+            ? job.JobName
+            : $"{job.JobName} ({job.ProjectNumber})";
+    }
+
     private async void ManualSyncButton_OnClick(object sender, RoutedEventArgs e)
     {
-        await RunSyncAsync(isAutoTrigger: false).ConfigureAwait(true);
+        await RunSyncAsync(isAutoTrigger: false, dryRun: false).ConfigureAwait(true);
+    }
+
+    private async void DryRunSyncButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await RunSyncAsync(isAutoTrigger: false, dryRun: true).ConfigureAwait(true);
     }
 
     private void RefreshBoardButton_OnClick(object sender, RoutedEventArgs e)
@@ -712,14 +1132,82 @@ public partial class SyncBoardWindow : Window
         ConfigureSourceWatcher();
     }
 
+    private void StrictProjectGuardCheckBox_OnChanged(object sender, RoutedEventArgs e)
+    {
+        _strictProjectFolderGuardEnabled = StrictProjectGuardCheckBox.IsChecked != false;
+        SaveState();
+        UpdateHeaderTexts();
+    }
+
+    private void ExportSyncDiagnosticsButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var tempFolder = Path.Combine(Path.GetTempPath(), $"lui-p-syncboard-diagnostics-{stamp}");
+            Directory.CreateDirectory(tempFolder);
+
+            var summaryPath = Path.Combine(tempFolder, "syncboard-summary.txt");
+            File.WriteAllLines(summaryPath, new[]
+            {
+                $"Generated: {DateTimeOffset.Now:O}",
+                $"Source Root: {_sourceRootPath}",
+                $"Destination Root: {_destinationRootPath}",
+                $"Strict Guard Enabled: {_strictProjectFolderGuardEnabled}",
+                $"Watcher Active: {_isSourceWatcherActive}",
+                $"Watcher Last Event: {_lastWatcherEventUtc?.ToLocalTime().ToString("yyyy-MM-dd h:mm:ss tt") ?? "never"}",
+                $"Watcher Last Event Summary: {_lastWatcherEventSummary}",
+                $"Watcher Last Trigger Reason: {_lastAutoSyncTriggerReason}",
+                $"Last Sync UTC: {_lastSyncUtc?.ToString("O") ?? "never"}",
+                $"Last Sync Status: {_lastSyncStatus}",
+                $"Destination Preview: {BuildDestinationPreviewText()}"
+            });
+
+            var configRoot = Path.Combine(_appPathsProvider.GetAppDataRoot(), "config");
+            var syncStatePath = Path.Combine(configRoot, "sync-board-state.json");
+            var prefsPath = Path.Combine(configRoot, "app-preferences.json");
+
+            if (File.Exists(syncStatePath))
+            {
+                File.Copy(syncStatePath, Path.Combine(tempFolder, "sync-board-state.json"), overwrite: true);
+            }
+
+            if (File.Exists(prefsPath))
+            {
+                File.Copy(prefsPath, Path.Combine(tempFolder, "app-preferences.json"), overwrite: true);
+            }
+
+            var zipPath = Path.Combine(desktop, $"lui-p-syncboard-diagnostics-{stamp}.zip");
+            if (File.Exists(zipPath))
+            {
+                File.Delete(zipPath);
+            }
+
+            ZipFile.CreateFromDirectory(tempFolder, zipPath);
+            Directory.Delete(tempFolder, recursive: true);
+
+            MessageBox.Show(this, $"Sync diagnostics exported:\n{zipPath}", "Sync Board", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Unable to export sync diagnostics.\n\n{ex.Message}", "Sync Board", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void RowsDataGrid_OnCellEditEnding(object sender, System.Windows.Controls.DataGridCellEditEndingEventArgs e)
     {
-        Dispatcher.BeginInvoke(() => SaveState(), DispatcherPriority.Background);
+        Dispatcher.BeginInvoke(() =>
+        {
+            SaveState();
+            ConfigureSourceWatcher();
+        }, DispatcherPriority.Background);
     }
 
     private void RowsDataGrid_OnCurrentCellChanged(object? sender, EventArgs e)
     {
         SaveState();
+        ConfigureSourceWatcher();
     }
 
     private void RowsDataGrid_OnSorting(object sender, DataGridSortingEventArgs e)
@@ -764,6 +1252,7 @@ public partial class SyncBoardWindow : Window
     {
         _sourceWatcher?.Dispose();
         _sourceWatcher = null;
+        _isSourceWatcherActive = false;
         _autoSyncDebounceTimer.Stop();
     }
 }

@@ -188,6 +188,8 @@ public partial class SettingsWindow : Window
         ChecksumDefaultCheckBox.IsChecked = prefs.VerifyLargeFileChecksumByDefault;
         ConfirmMoveCheckBox.IsChecked = prefs.ConfirmBeforeMoveToDestination;
         SyncBoardAutoSyncCheckBox.IsChecked = prefs.SyncBoardAutoSyncEnabled;
+        SyncBoardMirrorDeletesCheckBox.IsChecked = prefs.SyncBoardMirrorDeletesEnabled;
+        SelectIndexingAggressiveness(prefs.IndexingAggressiveness);
         var thresholdMb = Math.Max(1L, prefs.ChecksumThresholdBytes / (1024L * 1024L));
         ChecksumThresholdTextBox.Text = thresholdMb.ToString();
     }
@@ -205,12 +207,42 @@ public partial class SettingsWindow : Window
             VerifyLargeFileChecksumByDefault = ChecksumDefaultCheckBox.IsChecked == true,
             ConfirmBeforeMoveToDestination = ConfirmMoveCheckBox.IsChecked != false,
             SyncBoardAutoSyncEnabled = SyncBoardAutoSyncCheckBox.IsChecked != false,
+            SyncBoardMirrorDeletesEnabled = SyncBoardMirrorDeletesCheckBox.IsChecked != false,
+            IndexingAggressiveness = GetSelectedIndexingAggressiveness(),
             ChecksumThresholdBytes = thresholdMb * 1024L * 1024L
         };
 
         _preferencesStore.Save(prefs);
         _onPreferencesUpdated?.Invoke();
         MessageBox.Show(this, "Copy/move preferences saved.", "Copy Verification", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void SelectIndexingAggressiveness(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (normalized.Equals(AppPreferences.IndexingProfileFast, StringComparison.OrdinalIgnoreCase))
+        {
+            IndexingAggressivenessComboBox.SelectedIndex = 0;
+            return;
+        }
+
+        if (normalized.Equals(AppPreferences.IndexingProfileLow, StringComparison.OrdinalIgnoreCase))
+        {
+            IndexingAggressivenessComboBox.SelectedIndex = 2;
+            return;
+        }
+
+        IndexingAggressivenessComboBox.SelectedIndex = 1;
+    }
+
+    private string GetSelectedIndexingAggressiveness()
+    {
+        return IndexingAggressivenessComboBox.SelectedIndex switch
+        {
+            0 => AppPreferences.IndexingProfileFast,
+            2 => AppPreferences.IndexingProfileLow,
+            _ => AppPreferences.IndexingProfileNormal
+        };
     }
 
     private void RunLocalUninstallButton_OnClick(object sender, RoutedEventArgs e)

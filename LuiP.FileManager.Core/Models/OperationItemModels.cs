@@ -7,6 +7,7 @@ public enum OperationItemKind
     MoveCompleted = 2,
     RenameCompleted = 3,
     CreateFolderCreated = 4,
+    FolderTransferCompleted = 5,
     Unsupported = 99
 }
 

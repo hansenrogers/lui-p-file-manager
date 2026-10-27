@@ -24,6 +24,15 @@ Notes
 - Installer checks for Microsoft Edge WebView2 Runtime and installs it if missing.
 - Explorer integration can be enabled from Settings inside the app.
 
+Public download link
+- This is the client-download process:
+	1. Keep the release tied to a pushed `v*` tag.
+	2. Make the repository public when you want the download to work without login.
+	3. Share the release asset URL directly.
+	4. Test the link in a private/incognito browser session or with `curl`.
+- Example: https://github.com/hansenrogers/lui-p-file-manager/releases/download/v1.0.2/LuiP.FileManager-win-x64.zip
+- If the link says 404, the release is not public yet or the version tag does not match.
+
 Uninstall
 - Double-click Uninstall.cmd
 
